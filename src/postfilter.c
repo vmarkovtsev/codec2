@@ -29,7 +29,11 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+//#ifndef MATHNEON
 #include <math.h>
+//#else
+//#include "math_neon.h"
+//#endif
 
 #include "defines.h"
 #include "comp.h"

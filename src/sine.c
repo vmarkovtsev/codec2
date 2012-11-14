@@ -33,7 +33,12 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+
+#ifndef MATHNEON
 #include <math.h>
+#else
+#include "math_neon.h"
+#endif
 
 #include "defines.h"
 #include "sine.h"
@@ -488,7 +493,7 @@ float est_voicing_mbe(
 	/* If pitch is jumping about it's likely this is UV */
 
 	dF0 = (model->Wo - prev_Wo)*FS/TWO_PI;
-	if (fabs(dF0) > 15.0) 
+	if (fabs(dF0) > 15.0)
 	    model->voiced = 0;
 
 	/* A common source of Type 2 errors is the pitch estimator
@@ -575,7 +580,7 @@ void synthesise(
     }
 
     /*
-      Nov 2010 - found that synthesis using time domain cos() functions
+      Nov 2010 - found that synthesis using time domain cos( functions
       gives better results for synthesis frames greater than 10ms.  Inverse
       FFT synthesis using a 512 pt FFT works well for 10ms window.  I think
       (but am not sure) that the problem is realted to the quantisation of
@@ -607,7 +612,7 @@ void synthesise(
     fft(&Sw_[0].real,FFT_DEC,1);
 #else
     /*
-       Direct time domain synthesis using the cos() function.  Works
+       Direct time domain synthesis using the cos( function.  Works
        well at 10ms and 20ms frames rates.  Note synthesis window is
        still used to handle overlap-add between adjacent frames.  This
        could be simplified as we don't need to synthesise where Pn[]
@@ -615,10 +620,10 @@ void synthesise(
     */
     for(l=1; l<=model->L; l++) {
 	for(i=0,j=-N+1; i<N-1; i++,j++) {
-	    Sw_[FFT_DEC-N+1+i].real += 2.0*model->A[l]*cos(j*model->Wo*l + model->phi[l]);
+	    Sw_[FFT_DEC-N+1+i].real += 2.0*model->A[l]*cos_j*model->Wo*l + model->phi[l]);
 	}
  	for(i=N-1,j=0; i<2*N; i++,j++)
-	    Sw_[j].real += 2.0*model->A[l]*cos(j*model->Wo*l + model->phi[l]);
+	    Sw_[j].real += 2.0*model->A[l]*cos_j*model->Wo*l + model->phi[l]);
     }	
 #endif
 

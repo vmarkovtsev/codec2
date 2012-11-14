@@ -31,7 +31,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+//#ifndef MATHNEON
 #include <math.h>
+//#else
+//#include "math_neon.h"
+//#endif
 
 #include "defines.h"
 #include "sine.h"

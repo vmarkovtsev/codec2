@@ -30,6 +30,7 @@
 
 #include "defines.h"
 #include "lsp.h"
+// math-neon results in poorer performance here
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

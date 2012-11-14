@@ -29,6 +29,7 @@
 #define PI 3.141592654		/* mathematical constant */
 
 #include <assert.h>
+// math-neon results in poorer performance here
 #include <math.h>
 #include "defines.h"
 #include "lpc.h"

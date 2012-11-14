@@ -4,7 +4,7 @@
   AUTHOR......: David Rowe                                      
   DATE CREATED: 23/3/93                                    
                                                          
-  Non Linear Pitch (NLP) estimation functions.			  
+  Non Linear Pitch (NLP) estimation functions.
                                                                
 \*---------------------------------------------------------------------------*/
 
@@ -33,27 +33,30 @@
 #include <assert.h>
 #include <math.h>
 #include <stdlib.h>
+#ifdef NEON
+#include <arm_neon.h>
+#endif
 
 /*---------------------------------------------------------------------------*\
                                                                              
- 				DEFINES                                       
+         DEFINES
                                                                              
 \*---------------------------------------------------------------------------*/
 
-#define PMAX_M      600		/* maximum NLP analysis window size     */
-#define COEFF       0.95	/* notch filter parameter               */
-#define PE_FFT_SIZE 512		/* DFT size for pitch estimation        */
-#define DEC         5		/* decimation factor                    */
+#define PMAX_M      600    /* maximum NLP analysis window size     */
+#define COEFF       0.95  /* notch filter parameter               */
+#define PE_FFT_SIZE 512    /* DFT size for pitch estimation        */
+#define DEC         5    /* decimation factor                    */
 #define SAMPLE_RATE 8000
-#define PI          3.141592654	/* mathematical constant                */
+#define PI          3.141592654  /* mathematical constant                */
 #define T           0.1         /* threshold for local minima candidate */
 #define F0_MAX      500
-#define CNLP        0.3	        /* post processor constant              */
-#define NLP_NTAP 48	        /* Decimation LPF order */
+#define CNLP        0.3          /* post processor constant              */
+#define NLP_NTAP 48          /* Decimation LPF order */
 
 /*---------------------------------------------------------------------------*\
                                                                             
- 				GLOBALS                                       
+         GLOBALS
                                                                              
 \*---------------------------------------------------------------------------*/
 
@@ -111,15 +114,15 @@ const float nlp_fir[] = {
 };
 
 typedef struct {
-    float sq[PMAX_M];	     /* squared speech samples */
+    float sq[PMAX_M];       /* squared speech samples */
     float mem_x,mem_y;       /* memory for notch filter */
     float mem_fir[NLP_NTAP]; /* decimation FIR filter memory */
 } NLP;
 
 float post_process_mbe(COMP Fw[], int pmin, int pmax, float gmax);
 float post_process_sub_multiples(COMP Fw[], 
-				 int pmin, int pmax, float gmax, int gmax_bin,
-				 float *prev_Wo);
+         int pmin, int pmax, float gmax, int gmax_bin,
+         float *prev_Wo);
 
 /*---------------------------------------------------------------------------*\
                                                                              
@@ -136,14 +139,14 @@ void *nlp_create()
 
     nlp = (NLP*)malloc(sizeof(NLP));
     if (nlp == NULL)
-	return NULL;
+  return NULL;
 
     for(i=0; i<PMAX_M; i++)
-	nlp->sq[i] = 0.0;
+  nlp->sq[i] = 0.0;
     nlp->mem_x = 0.0;
     nlp->mem_y = 0.0;
     for(i=0; i<NLP_NTAP; i++)
-	nlp->mem_fir[i] = 0.0;
+  nlp->mem_fir[i] = 0.0;
 
     return (void*)nlp;
 }
@@ -194,19 +197,19 @@ void nlp_destroy(void *nlp_state)
 
 float nlp(
   void *nlp_state, 
-  float  Sn[],			/* input speech vector */
-  int    n,			/* frames shift (no. new samples in Sn[]) */
-  int    m,			/* analysis window size */
-  int    pmin,			/* minimum pitch value */
-  int    pmax,			/* maximum pitch value */
-  float *pitch,			/* estimated pitch period in samples */
+  float  Sn[],      /* input speech vector */
+  int    n,      /* frames shift (no. new samples in Sn[]) */
+  int    m,      /* analysis window size */
+  int    pmin,      /* minimum pitch value */
+  int    pmax,      /* maximum pitch value */
+  float *pitch,      /* estimated pitch period in samples */
   COMP   Sw[],                  /* Freq domain version of Sn[] */
   float *prev_Wo
 )
 {
     NLP   *nlp;
-    float  notch;		    /* current notch filter output */
-    COMP   Fw[PE_FFT_SIZE];	    /* DFT of squared signal */
+    float  notch;        /* current notch filter output */
+    COMP   Fw[PE_FFT_SIZE];      /* DFT of squared signal */
     float  gmax;
     int    gmax_bin;
     int   i,j;
@@ -217,44 +220,44 @@ float nlp(
 
     /* Square, notch filter at DC, and LP filter vector */
 
-    for(i=m-n; i<M; i++) 	    /* square latest speech samples */
-	nlp->sq[i] = Sn[i]*Sn[i];
+    for(i=m-n; i<M; i++)       /* square latest speech samples */
+  nlp->sq[i] = Sn[i]*Sn[i];
 
-    for(i=m-n; i<m; i++) {	/* notch filter at DC */
-	notch = nlp->sq[i] - nlp->mem_x;
-	notch += COEFF*nlp->mem_y;
-	nlp->mem_x = nlp->sq[i];
-	nlp->mem_y = notch;
-	nlp->sq[i] = notch;
+    for(i=m-n; i<m; i++) {  /* notch filter at DC */
+  notch = nlp->sq[i] - nlp->mem_x;
+  notch += COEFF*nlp->mem_y;
+  nlp->mem_x = nlp->sq[i];
+  nlp->mem_y = notch;
+  nlp->sq[i] = notch;
     }
 
-    for(i=m-n; i<m; i++) {	/* FIR filter vector */
+    for(i=m-n; i<m; i++) {  /* FIR filter vector */
 
-	for(j=0; j<NLP_NTAP-1; j++)
-	    nlp->mem_fir[j] = nlp->mem_fir[j+1];
-	nlp->mem_fir[NLP_NTAP-1] = nlp->sq[i];
+  for(j=0; j<NLP_NTAP-1; j++)
+      nlp->mem_fir[j] = nlp->mem_fir[j+1];
+  nlp->mem_fir[NLP_NTAP-1] = nlp->sq[i];
 
-	nlp->sq[i] = 0.0;
-	for(j=0; j<NLP_NTAP; j++)
-	    nlp->sq[i] += nlp->mem_fir[j]*nlp_fir[j];
+  nlp->sq[i] = 0.0;
+  for(j=0; j<NLP_NTAP; j++)
+      nlp->sq[i] += nlp->mem_fir[j]*nlp_fir[j];
     }
 
     /* Decimate and DFT */
 
     for(i=0; i<PE_FFT_SIZE; i++) {
-	Fw[i].real = 0.0;
-	Fw[i].imag = 0.0;
+  Fw[i].real = 0.0;
+  Fw[i].imag = 0.0;
     }
     for(i=0; i<m/DEC; i++) {
-	Fw[i].real = nlp->sq[i*DEC]*(0.5 - 0.5*cos(2*PI*i/(m/DEC-1)));
+  Fw[i].real = nlp->sq[i*DEC]*(0.5 - 0.5*cos(2*PI*i/(m/DEC-1)));
     }
 #ifdef DUMP
     dump_dec(Fw);
 #endif
     fft(&Fw[0].real,PE_FFT_SIZE,1);
-    for(i=0; i<PE_FFT_SIZE; i++)
-	Fw[i].real = Fw[i].real*Fw[i].real + Fw[i].imag*Fw[i].imag;
-
+    for(i=0; i<PE_FFT_SIZE; i++) {
+    	Fw[i].real = Fw[i].real*Fw[i].real + Fw[i].imag*Fw[i].imag;
+    }
 #ifdef DUMP
     dump_sq(nlp->sq);
     dump_Fw(Fw);
@@ -265,19 +268,19 @@ float nlp(
     gmax = 0.0;
     gmax_bin = PE_FFT_SIZE*DEC/pmax;
     for(i=PE_FFT_SIZE*DEC/pmax; i<=PE_FFT_SIZE*DEC/pmin; i++) {
-	if (Fw[i].real > gmax) {
-	    gmax = Fw[i].real;
-	    gmax_bin = i;
-	}
+			if (Fw[i].real > gmax) {
+				gmax = Fw[i].real;
+				gmax_bin = i;
+			}
     }
 
     best_f0 = post_process_sub_multiples(Fw, pmin, pmax, gmax, gmax_bin, 
-					 prev_Wo);
+           prev_Wo);
 
     /* Shift samples in buffer to make room for new samples */
 
     for(i=0; i<m-n; i++)
-	nlp->sq[i] = nlp->sq[i+n];
+  nlp->sq[i] = nlp->sq[i+n];
 
     /* return pitch and F0 estimate */
 
@@ -307,8 +310,8 @@ float nlp(
 \*---------------------------------------------------------------------------*/
 
 float post_process_sub_multiples(COMP Fw[], 
-				 int pmin, int pmax, float gmax, int gmax_bin,
-				 float *prev_Wo)
+         int pmin, int pmax, float gmax, int gmax_bin,
+         float *prev_Wo)
 {
     int   min_bin, cmax_bin;
     int   mult;
@@ -326,35 +329,35 @@ float post_process_sub_multiples(COMP Fw[],
 
     while(gmax_bin/mult >= min_bin) {
 
-	b = gmax_bin/mult;			/* determine search interval */
-	bmin = 0.8*b;
-	bmax = 1.2*b;
-	if (bmin < min_bin)
-	    bmin = min_bin;
+  b = gmax_bin/mult;      /* determine search interval */
+  bmin = 0.8*b;
+  bmax = 1.2*b;
+  if (bmin < min_bin)
+      bmin = min_bin;
 
-	/* lower threshold to favour previous frames pitch estimate,
-	    this is a form of pitch tracking */
+  /* lower threshold to favour previous frames pitch estimate,
+      this is a form of pitch tracking */
 
-	if ((prev_f0_bin > bmin) && (prev_f0_bin < bmax))
-	    thresh = CNLP*0.5*gmax;
-	else
-	    thresh = CNLP*gmax;
+  if ((prev_f0_bin > bmin) && (prev_f0_bin < bmax))
+      thresh = CNLP*0.5*gmax;
+  else
+      thresh = CNLP*gmax;
 
-	lmax = 0;
-	lmax_bin = bmin;
-	for (b=bmin; b<=bmax; b++) 		/* look for maximum in interval */
-	    if (Fw[b].real > lmax) {
-		lmax = Fw[b].real;
-		lmax_bin = b;
-	    }
+  lmax = 0;
+  lmax_bin = bmin;
+  for (b=bmin; b<=bmax; b++)     /* look for maximum in interval */
+      if (Fw[b].real > lmax) {
+    lmax = Fw[b].real;
+    lmax_bin = b;
+      }
 
-	if (lmax > thresh)
-	    if ((lmax > Fw[lmax_bin-1].real) && (lmax > Fw[lmax_bin+1].real)) {
-		cmax = lmax;
-		cmax_bin = lmax_bin;
-	    }
+  if (lmax > thresh)
+      if ((lmax > Fw[lmax_bin-1].real) && (lmax > Fw[lmax_bin+1].real)) {
+    cmax = lmax;
+    cmax_bin = lmax_bin;
+      }
 
-	mult++;
+  mult++;
     }
 
     best_f0 = (float)cmax_bin*SAMPLE_RATE/(PE_FFT_SIZE*DEC);

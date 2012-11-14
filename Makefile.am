@@ -100,5 +100,8 @@ $(top_srcdir)/src/codebook/dlsp8.txt \
 $(top_srcdir)/src/codebook/dlsp9.txt \
 $(top_srcdir)/src/codebook/dlsp10.txt
 
-
+if MATH_NEON
+SUBDIRS = math-neon src unittest
+else
 SUBDIRS = src unittest
+endif

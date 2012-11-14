@@ -1,12 +1,16 @@
-AM_CFLAGS = -I../src -fPIC -Wall -O3
-AUTOMAKE_OPTS = gnu
-NAME = codec2
-AM_CPPFLAGS = $(AM_CFLAGS)
-
 if LIBAVCODEC_FFT
 FFTCFLAGS=@LIBAVCODEC_CFLAGS@
 FFTLIBS=@LIBAVCODEC_LIBS@
 endif
+if MATH_NEON
+MATHNEONCFLAGS=-I$(top_srcdir)/math-neon/include
+MATHNEONLIBS=$(top_builddir)/math-neon/libmath_neon.la
+endif
+
+AM_CFLAGS = -I../src -fPIC -Wall -O3 -g $(FFTCFLAGS) $(MATHNEONCFLAGS)
+AUTOMAKE_OPTS = gnu
+NAME = codec2
+AM_CPPFLAGS = $(AM_CFLAGS)
 
 D=$(top_srcdir)/src/codebook
 
@@ -86,8 +90,8 @@ codebook.c \
 codebookd.c \
 codebookdvq.c
 
-libcodec2_la_CFLAGS = $(AM_CFLAGS) $(FFTCFLAGS)
-libcodec2_la_LDFLAGS = $(LIBS) $(FFTLIBS)
+libcodec2_la_CFLAGS = $(AM_CFLAGS)
+libcodec2_la_LDFLAGS = $(LIBS) $(FFTLIBS) $(MATHNEONLIBS)
 
 library_includedir = $(prefix)/include
 library_include_HEADERS	= codec2.h \
@@ -111,17 +115,17 @@ glottal.c
 bin_PROGRAMS = c2demo c2enc c2dec c2sim
 
 c2demo_SOURCES = c2demo.c
-c2demo_LDADD = $(lib_LTLIBRARIES) $(FFTLIBS)
+c2demo_LDADD = $(lib_LTLIBRARIES) $(FFTLIBS) $(MATHNEONLIBS)
 c2demo_LDFLAGS = $(LIBS)
 
 c2enc_SOURCES = c2enc.c
-c2enc_LDADD = $(lib_LTLIBRARIES) $(FFTLIBS)
+c2enc_LDADD = $(lib_LTLIBRARIES) $(FFTLIBS) $(MATHNEONLIBS)
 c2enc_LDFLAGS = $(LIBS)
 
 c2dec_SOURCES = c2dec.c
-c2dec_LDADD = $(lib_LTLIBRARIES) $(FFTLIBS)
+c2dec_LDADD = $(lib_LTLIBRARIES) $(FFTLIBS) $(MATHNEONLIBS)
 c2dec_LDFLAGS = $(LIBS)
 
 c2sim_SOURCES = c2sim.c
-c2sim_LDADD = $(lib_LTLIBRARIES) $(FFTLIBS)
+c2sim_LDADD = $(lib_LTLIBRARIES) $(FFTLIBS) $(MATHNEONLIBS)
 c2sim_LDFLAGS = $(LIBS)

@@ -32,7 +32,11 @@
 #include "glottal.c"
 
 #include <assert.h>
+#ifndef MATHNEON
 #include <math.h>
+#else
+#include "math_neon.h"
+#endif
 #include <string.h>
 #include <stdlib.h>
 

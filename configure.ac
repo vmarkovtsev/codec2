@@ -35,7 +35,7 @@ AC_ARG_ENABLE([libavcodec-fft],
               AS_HELP_STRING([--enable-libavcodec-fft], [Use libavcodec FFT implementation instead of the built-in kiss_fft]),
               [enable_libavcodec_fft=yes CFLAGS="$CFLAGS -DLIBAVCODEC_FFT"],
               [enable_libavcodec_fft=no CFLAGS="$CFLAGS -DKISS_FFT"])
-AM_CONDITIONAL(LIBAVCODEC_FFT, test x$enable_libavcodec_fft = xyes) 
+AM_CONDITIONAL(LIBAVCODEC_FFT, test "x$enable_libavcodec_fft" = "xyes") 
 
 AS_IF([test "x$enable_libavcodec_fft" == "xyes"], [
 # livavcodec FFT check
@@ -48,8 +48,18 @@ AC_ARG_ENABLE([neon],
               [enable_neon=yes CFLAGS="$CFLAGS -mfpu=neon -DNEON"],
               [enable_neon=no])
 AS_IF([test "x$enable_neon" == "xyes"], [
-	AC_CHECK_HEADERS([arm_neon.h])
-])     
+	AC_CHECK_HEADERS([arm_neon.h],,AC_MSG_ERROR([arm_neon.h was not found but you explicitly requested NEON acceleration]))
+])
+
+AC_ARG_ENABLE([math-neon],
+              AS_HELP_STRING([--enable-math-neon], [Enable math-neon libm drop-in replcement functions]),
+              [enable_math_neon=yes],
+              [enable_math_neon=no])
+AM_CONDITIONAL(MATH_NEON, test "x$enable_math_neon" == "xyes" -a "x$enable_neon" == "xyes")
+AS_IF([test "x$enable_math_neon" == "xyes" -a "x$enable_neon" == "xyes"], [
+	CFLAGS="$CFLAGS -DMATHNEON"
+	AC_CONFIG_FILES([math-neon/Makefile])
+])
 
 AC_CONFIG_FILES([Makefile src/Makefile unittest/Makefile])
 AC_OUTPUT
