@@ -5,14 +5,19 @@ Codec 2 is an open source 2400 bit/s speech codec (LGPL licensed).
 For more information please see:
 
     http://rowetel.com/codec2.html
+    
+This github fork basically adds libavcodec FFT besides KISS FFT (much faster) and ARM NEON optimizations.
 
 Quickstart
 ----------
 
 1/ Listen to Codec 2:
 
-   $ cd codec2/src
-   $ ./configure && make
+   $ cd codec2
+   $ ./autogen.sh
+   $ mkdir build && cd build
+   $ ../configure --enable-libavcodec-fft && make -j`getconf _NPROCESSORS_ONLN`
+   $ cd src
    $ ./c2demo ../raw/hts1a.raw hts1a_c2.raw
    $ ../script/menu.sh ../raw/hts1a.raw hts1a_c2.raw
 
