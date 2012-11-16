@@ -4,4 +4,4 @@ libmath_neon_la_SOURCES = math_expf.c math_sinhf.c math_mat3.c math_vec4.c math_
 
 # Compiler options. Here we are adding the include directory
 # to be searched for headers included in the source code.
-libmath_neon_la_CFLAGS = -I$(top_srcdir)/math-neon/include -std=gnu99 -g
+libmath_neon_la_CFLAGS = -I$(top_srcdir)/math-neon/include -std=gnu99

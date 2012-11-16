@@ -70,6 +70,9 @@ typedef struct {
   int   L;		/* number of harmonics                        */
   float A[MAX_AMP];	/* amplitiude of each harmonic                */
   float phi[MAX_AMP];	/* phase of each harmonic                     */
+#ifdef NEON
+  float tanphi[MAX_AMP];	/* tangent of phase of each harmonic                     */
+#endif
   int   voiced;	        /* non-zero if this frame is voiced           */
 } MODEL;
 

@@ -29,7 +29,6 @@
 #define PI 3.141592654		/* mathematical constant */
 
 #include <assert.h>
-// math-neon results in poorer performance here
 #include <math.h>
 #include "defines.h"
 #include "lpc.h"
@@ -51,7 +50,7 @@ void hanning_window(
   int i;	/* loop variable */
 
   for(i=0; i<Nsam; i++)
-    Wn[i] = Sn[i]*(0.5 - 0.5*cos(2*PI*(float)i/(Nsam-1)));
+    Wn[i] = Sn[i]*(0.5 - 0.5*cosf(2*PI*(float)i/(Nsam-1)));
 }
 
 /*---------------------------------------------------------------------------*\
@@ -101,7 +100,7 @@ void autocorrelate_freq(
   for(j=0; j<order+1; j++) {
     R[j] = 0.0;
     for(i=0; i<Nsam; i++)
-	R[j] += Pw[i]*cos(j*w[i]);
+	R[j] += Pw[i]*cosf(j*w[i]);
   }
   R[j] /= Nsam;
 }
@@ -140,7 +139,7 @@ void levinson_durbin(
     for(j=1; j<=i-1; j++)
       sum += a[i-1][j]*R[i-j];
     k[i] = -1.0*(R[i] + sum)/E[i-1];	/* Equation 38b, Makhoul */
-    if (fabs(k[i]) > 1.0)
+    if (fabsf(k[i]) > 1.0)
       k[i] = 0.0;
 
     a[i][i] = k[i];
@@ -275,6 +274,6 @@ void weight(
   int i;
   
   for(i=1; i<=order; i++)
-    akw[i] = ak[i]*pow(gamma,(float)i);
+    akw[i] = ak[i]*powf(gamma,(float)i);
 }
     

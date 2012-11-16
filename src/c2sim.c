@@ -31,11 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-//#ifndef MATHNEON
 #include <math.h>
-//#else
-//#include "math_neon.h"
-//#endif
 
 #include "defines.h"
 #include "sine.h"
@@ -143,10 +139,13 @@ int main(int argc, char *argv[])
   prev_Wo = TWO_PI/P_MAX;
 
   prev_model.Wo = TWO_PI/P_MIN;
-  prev_model.L = floor(PI/prev_model.Wo);
+  prev_model.L = floorf(PI/prev_model.Wo);
   for(i=1; i<=prev_model.L; i++) {
       prev_model.A[i] = 0.0;
       prev_model.phi[i] = 0.0;
+#ifdef NEON
+      prev_model.tanphi[i] = 0.0;
+#endif
   }
   for(i=1; i<=MAX_AMP; i++) {
       ex_phase[i] = 0.0;
@@ -315,8 +314,12 @@ int main(int argc, char *argv[])
 
 	/* just to make sure we are not cheating - kill all phases */
 
-	for(i=0; i<MAX_AMP; i++)
+	for(i=0; i<MAX_AMP; i++) {
 	    model.phi[i] = 0;
+#ifdef NEON
+	    model.tanphi[i] = 0;
+#endif
+	}
 	
 	if (hand_voicing) {
 	    fscanf(fvoicing,"%d\n",&model.voiced);

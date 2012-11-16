@@ -29,11 +29,14 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-//#ifndef MATHNEON
+#ifndef MATHNEON
 #include <math.h>
-//#else
-//#include "math_neon.h"
-//#endif
+#else
+#include <math.h>
+#define NO_DROPIN
+#include "math_neon.h"
+#define log10f		log10f_neon
+#endif
 
 #include "defines.h"
 #include "comp.h"
@@ -109,7 +112,7 @@ void postfilter(
   for(m=1; m<=model->L; m++)
       e += model->A[m]*model->A[m];
 
-  e = 10.0*log10(e/model->L);
+  e = 10.0*log10f(e/model->L);
 
   /* If beneath threhold, update bg estimate.  The idea
      of the threshold is to prevent updating during high level
@@ -125,8 +128,11 @@ void postfilter(
   uv = 0;
   if (model->voiced)
       for(m=1; m<=model->L; m++)
-	  if (20.0*log10(model->A[m]) < *bg_est) {
+	  if (20.0*log10f(model->A[m]) < *bg_est) {
 	      model->phi[m] = TWO_PI*(float)rand()/RAND_MAX;
+#ifdef NEON
+	      model->tanphi[m] = tanf(model->phi[m]);
+#endif
 	      uv++;
 	  }
 

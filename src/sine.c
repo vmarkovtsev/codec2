@@ -37,7 +37,11 @@
 #ifndef MATHNEON
 #include <math.h>
 #else
+#include <math.h>
+#define NO_DROPIN
 #include "math_neon.h"
+#define log10f		log10f_neon
+#define atan2f		atan2f_neon
 #endif
 
 #include "defines.h"
@@ -92,7 +96,7 @@ void make_analysis_window(float w[],COMP W[])
   for(i=0; i<M/2-NW/2; i++)
     w[i] = 0.0;
   for(i=M/2-NW/2,j=0; i<M/2+NW/2; i++,j++) {
-    w[i] = 0.5 - 0.5*cos(TWO_PI*j/(NW-1));
+    w[i] = 0.5 - 0.5*cosf(TWO_PI*j/(NW-1));
     m += w[i]*w[i];
   }
   for(i=M/2+NW/2; i<M; i++)
@@ -101,7 +105,7 @@ void make_analysis_window(float w[],COMP W[])
   /* Normalise - makes freq domain amplitude estimation straight
      forward */
 
-  m = 1.0/sqrt(m*FFT_ENC);
+  m = 1.0/sqrtf(m*FFT_ENC);
   for(i=0; i<M; i++) {
     w[i] *= m;
   }
@@ -264,7 +268,7 @@ void two_stage_pitch_refinement(MODEL *model, COMP Sw[])
   if (model->Wo > TWO_PI/P_MIN)
     model->Wo = TWO_PI/P_MIN;
 
-  model->L = floor(PI/model->Wo);
+  model->L = floorf(PI/model->Wo);
 }
 
 /*---------------------------------------------------------------------------*\
@@ -311,7 +315,7 @@ void hs_pitch_refinement(MODEL *model, COMP Sw[], float pmin, float pmax, float 
     /* Sum harmonic magnitudes */
 
     for(m=1; m<=model->L; m++) {
-      b = floor(m*Wo/r + 0.5);
+      b = floorf(m*Wo/r + 0.5);
       E += Sw[b].real*Sw[b].real + Sw[b].imag*Sw[b].imag;
     }  
 
@@ -350,9 +354,9 @@ void estimate_amplitudes(MODEL *model, COMP Sw[], COMP W[])
 
   for(m=1; m<=model->L; m++) {
     den = 0.0;
-    am = floor((m - 0.5)*model->Wo/r + 0.5);
-    bm = floor((m + 0.5)*model->Wo/r + 0.5);
-    b = floor(m*model->Wo/r + 0.5);
+    am = floorf((m - 0.5)*model->Wo/r + 0.5);
+    bm = floorf((m + 0.5)*model->Wo/r + 0.5);
+    b = floorf(m*model->Wo/r + 0.5);
 
     /* Estimate ampltude of harmonic */
 
@@ -360,16 +364,19 @@ void estimate_amplitudes(MODEL *model, COMP Sw[], COMP W[])
     Am.real = Am.imag = 0.0;
     for(i=am; i<bm; i++) {
       den += Sw[i].real*Sw[i].real + Sw[i].imag*Sw[i].imag;
-      offset = i + FFT_ENC/2 - floor(m*model->Wo/r + 0.5);
+      offset = i + FFT_ENC/2 - floorf(m*model->Wo/r + 0.5);
       Am.real += Sw[i].real*W[offset].real;
       Am.imag += Sw[i].imag*W[offset].real;
     }
 
-    model->A[m] = sqrt(den);
+    model->A[m] = sqrtf(den);
 
     /* Estimate phase of harmonic */
 
-    model->phi[m] = atan2(Sw[b].imag,Sw[b].real);
+    model->phi[m] = atan2f(Sw[b].imag,Sw[b].real);
+#ifdef NEON
+    model->tanphi[m] = Sw[b].imag / Sw[b].real;
+#endif
   }
 }
 
@@ -423,8 +430,8 @@ float est_voicing_mbe(
 	Am.real = 0.0;
 	Am.imag = 0.0;
 	den = 0.0;
-	al = ceil((l - 0.5)*Wo*FFT_ENC/TWO_PI);
-	bl = ceil((l + 0.5)*Wo*FFT_ENC/TWO_PI);
+	al = ceilf((l - 0.5)*Wo*FFT_ENC/TWO_PI);
+	bl = ceilf((l + 0.5)*Wo*FFT_ENC/TWO_PI);
 
 	/* Estimate amplitude of harmonic assuming harmonic is totally voiced */
 
@@ -451,7 +458,7 @@ float est_voicing_mbe(
 	}
     }
     
-    snr = 10.0*log10(sig/error);
+    snr = 10.0*log10f(sig/error);
     if (snr > V_THRESH)
 	model->voiced = 1;
     else
@@ -473,7 +480,7 @@ float est_voicing_mbe(
     for(l=model->L/2; l<=model->L; l++) {
 	ehigh += model->A[l]*model->A[l];
     }
-    eratio = 10.0*log10(elow/ehigh);
+    eratio = 10.0*log10f(elow/ehigh);
     dF0 = 0.0;
 
     /* Look for Type 1 errors, strongly V speech that has been
@@ -493,7 +500,7 @@ float est_voicing_mbe(
 	/* If pitch is jumping about it's likely this is UV */
 
 	dF0 = (model->Wo - prev_Wo)*FS/TWO_PI;
-	if (fabs(dF0) > 15.0)
+	if (fabsf(dF0) > 15.0)
 	    model->voiced = 0;
 
 	/* A common source of Type 2 errors is the pitch estimator
@@ -580,7 +587,7 @@ void synthesise(
     }
 
     /*
-      Nov 2010 - found that synthesis using time domain cos( functions
+      Nov 2010 - found that synthesis using time domain cosf( functions
       gives better results for synthesis frames greater than 10ms.  Inverse
       FFT synthesis using a 512 pt FFT works well for 10ms window.  I think
       (but am not sure) that the problem is realted to the quantisation of
@@ -597,12 +604,39 @@ void synthesise(
 #ifdef FFT_SYNTHESIS
     /* Now set up frequency domain synthesised speech */
     for(l=1; l<=model->L; l++) {
-	b = floor(l*model->Wo*FFT_DEC/TWO_PI + 0.5);
+	b = floorf(l*model->Wo*FFT_DEC/TWO_PI + 0.5);
 	if (b > ((FFT_DEC/2)-1)) {
 		b = (FFT_DEC/2)-1;
 	}
-	Sw_[b].real = model->A[l]*cos(model->phi[l]);
-	Sw_[b].imag = model->A[l]*sin(model->phi[l]);
+#ifndef NEON
+	Sw_[b].real = model->A[l]*cosf(model->phi[l]);
+	Sw_[b].imag = model->A[l]*sinf(model->phi[l]);
+#else
+	float tanphi = model->tanphi[l];
+	float tmp = 1.0f + tanphi * tanphi;
+	float real = model->A[l]*sqrtf(1.0f / tmp);
+	float imag = model->A[l]*sqrtf(1.0f - 1.0f / tmp);
+	// Get the quadrant
+	float sinm = 1.0f, cosm = 1.0f;
+	if (model->phi[l] < 0) {
+		tmp = fmodf(-model->phi[l], TWO_PI);
+		sinm = -1.0f;
+	} else {
+		tmp = fmodf(model->phi[l], TWO_PI);
+	}
+	if (tmp < M_PI) {  // [0, pi]
+		if (tmp > M_PI_2) {  // [pi/2, pi]
+			cosm = -1.0f;
+		}
+	} else {
+		sinm *= -1.0f;  // [pi, 2pi]
+		if (tmp < M_PI + M_PI_2) {  // [pi, 1.5pi]
+			cosm = -1.0f;
+		}
+	}
+	Sw_[b].real = real * cosm;
+	Sw_[b].imag = imag * sinm;
+#endif
 	Sw_[FFT_DEC-b].real = Sw_[b].real;
 	Sw_[FFT_DEC-b].imag = -Sw_[b].imag;
     }
@@ -612,7 +646,7 @@ void synthesise(
     fft(&Sw_[0].real,FFT_DEC,1);
 #else
     /*
-       Direct time domain synthesis using the cos( function.  Works
+       Direct time domain synthesis using the cosf( function.  Works
        well at 10ms and 20ms frames rates.  Note synthesis window is
        still used to handle overlap-add between adjacent frames.  This
        could be simplified as we don't need to synthesise where Pn[]

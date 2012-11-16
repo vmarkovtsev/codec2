@@ -57,7 +57,7 @@ AC_ARG_ENABLE([math-neon],
               [enable_math_neon=no])
 AM_CONDITIONAL(MATH_NEON, test "x$enable_math_neon" == "xyes" -a "x$enable_neon" == "xyes")
 AS_IF([test "x$enable_math_neon" == "xyes" -a "x$enable_neon" == "xyes"], [
-	CFLAGS="$CFLAGS -DMATHNEON"
+	CFLAGS="$CFLAGS -DMATHNEON -Wno-return-type"
 	AC_CONFIG_FILES([math-neon/Makefile])
 ])
 

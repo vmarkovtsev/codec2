@@ -7,7 +7,7 @@ MATHNEONCFLAGS=-I$(top_srcdir)/math-neon/include
 MATHNEONLIBS=$(top_builddir)/math-neon/libmath_neon.la
 endif
 
-AM_CFLAGS = -I../src -fPIC -Wall -O3 -g $(FFTCFLAGS) $(MATHNEONCFLAGS)
+AM_CFLAGS = -I../src -fPIC -Wall -O3 -funroll-loops -ffast-math -g $(FFTCFLAGS) $(MATHNEONCFLAGS)
 AUTOMAKE_OPTS = gnu
 NAME = codec2
 AM_CPPFLAGS = $(AM_CFLAGS)

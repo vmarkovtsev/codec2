@@ -33,6 +33,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 #ifdef NEON
 #include <arm_neon.h>
 #endif
@@ -220,36 +221,63 @@ float nlp(
 
     /* Square, notch filter at DC, and LP filter vector */
 
+#ifndef NEON
     for(i=m-n; i<M; i++)       /* square latest speech samples */
-  nlp->sq[i] = Sn[i]*Sn[i];
-
-    for(i=m-n; i<m; i++) {  /* notch filter at DC */
-  notch = nlp->sq[i] - nlp->mem_x;
-  notch += COEFF*nlp->mem_y;
-  nlp->mem_x = nlp->sq[i];
-  nlp->mem_y = notch;
-  nlp->sq[i] = notch;
+    	nlp->sq[i] = Sn[i]*Sn[i];
+#else
+    for(i=m-n; i<M; i+=4) {  // M should %4 = 0
+    	float32x4_t sq4 = vld1q_f32(&Sn[i]);
+    	sq4 = vmulq_f32(sq4, sq4);
+    	vst1q_f32(&nlp->sq[i], sq4);
     }
+#endif
+    float mem_x = nlp->mem_x, mem_y = nlp->mem_y;
+    for(i=m-n; i<m; i++) {  /* notch filter at DC */
+			notch = nlp->sq[i] - mem_x;
+			notch += COEFF*mem_y;
+			mem_x = nlp->sq[i];
+			mem_y = notch;
+			nlp->sq[i] = notch;
+    }
+    nlp->mem_x = mem_x;
+    nlp->mem_y = mem_y;
 
     for(i=m-n; i<m; i++) {  /* FIR filter vector */
+			memmove(&nlp->mem_fir[0], &nlp->mem_fir[1], NLP_NTAP-1);
+			nlp->mem_fir[NLP_NTAP-1] = nlp->sq[i];
 
-  for(j=0; j<NLP_NTAP-1; j++)
-      nlp->mem_fir[j] = nlp->mem_fir[j+1];
-  nlp->mem_fir[NLP_NTAP-1] = nlp->sq[i];
-
-  nlp->sq[i] = 0.0;
-  for(j=0; j<NLP_NTAP; j++)
-      nlp->sq[i] += nlp->mem_fir[j]*nlp_fir[j];
+#ifndef NEON
+			nlp->sq[i] = 0.0;
+			for(j=0; j<NLP_NTAP; j++) {
+					nlp->sq[i] += nlp->mem_fir[j]*nlp_fir[j];
+			}
+#else
+			float32x4_t sum4 = { 0.0f, 0.0f, 0.0f, 0.0f };
+			for(j=0; j<NLP_NTAP; j+=4) {  // NLP_NTAP should %4 = 0
+					float32x4_t mem_fir4 = vld1q_f32(&nlp->mem_fir[j]);
+					float32x4_t nlp_fir4 = vld1q_f32(&nlp_fir[j]);
+					sum4 = vmlaq_f32(sum4, mem_fir4, nlp_fir4);
+			}
+			nlp->sq[i] = vgetq_lane_f32(sum4, 0) + vgetq_lane_f32(sum4, 1) +
+					vgetq_lane_f32(sum4, 2) + vgetq_lane_f32(sum4, 3);
+#endif
     }
 
     /* Decimate and DFT */
 
+#ifndef NEON
     for(i=0; i<PE_FFT_SIZE; i++) {
-  Fw[i].real = 0.0;
-  Fw[i].imag = 0.0;
+			Fw[i].real = 0.0;
+			Fw[i].imag = 0.0;
     }
+#else
+    float32x4_t zero4 = { 0.0f, 0.0f, 0.0f, 0.0f };
+    for(i=0; i<PE_FFT_SIZE; i+=2) {
+			vst1q_f32((float *)&Fw[i], zero4);
+		}
+#endif
     for(i=0; i<m/DEC; i++) {
-  Fw[i].real = nlp->sq[i*DEC]*(0.5 - 0.5*cos(2*PI*i/(m/DEC-1)));
+    	Fw[i].real = nlp->sq[i*DEC]*(0.5 - 0.5*cosf(2*PI*i/(m/DEC-1)));
     }
 #ifdef DUMP
     dump_dec(Fw);
@@ -279,8 +307,7 @@ float nlp(
 
     /* Shift samples in buffer to make room for new samples */
 
-    for(i=0; i<m-n; i++)
-  nlp->sq[i] = nlp->sq[i+n];
+    memmove(&nlp->sq[0], &nlp->sq[n], m - n);
 
     /* return pitch and F0 estimate */
 

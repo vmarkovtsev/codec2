@@ -26,11 +26,7 @@
 */
 
 #include <assert.h>
-//#ifndef MATHNEON
 #include <math.h>
-//#else
-//#include "math_neon.h"
-//#endif
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -94,7 +90,7 @@ void interpolate(
     for(l=1; l<=interp->L; l++) {
 	w = l*interp->Wo;
 	log_amp = (sample_log_amp(prev, w) + sample_log_amp(next, w))/2.0;
-	interp->A[l] = pow(10.0, log_amp);
+	interp->A[l] = powf(10.0, log_amp);
     }
 }
 
@@ -123,16 +119,16 @@ float sample_log_amp(MODEL *model, float w)
     assert(f <= 1.0);
 
     if (m < 1) {
-	log_amp = f*log10(model->A[1] + 1E-6);
+	log_amp = f*log10f(model->A[1] + 1E-6);
     }
     else if ((m+1) > model->L) {
-	log_amp = (1.0-f)*log10(model->A[model->L] + 1E-6);
+	log_amp = (1.0-f)*log10f(model->A[model->L] + 1E-6);
     }
     else {
-	log_amp = (1.0-f)*log10(model->A[m] + 1E-6) + 
-                  f*log10(model->A[m+1] + 1E-6);
+	log_amp = (1.0-f)*log10f(model->A[m] + 1E-6) +
+                  f*log10f(model->A[m+1] + 1E-6);
 	//printf("m=%d A[m] %f A[m+1] %f x %f %f %f\n", m, model->A[m], 
-	//       model->A[m+1], pow(10.0, log_amp),
+	//       model->A[m+1], powf(10.0, log_amp),
 	//       (1-f), f);
     }
 
@@ -166,18 +162,18 @@ float sample_log_amp_quad(MODEL *model, float w)
 
     assert(w > 0.0); assert (w <= PI);
 
-    m = floor(w/model->Wo + 0.5);
+    m = floorf(w/model->Wo + 0.5);
     if (m < 2) m = 2;
     if (m > (model->L-1)) m = model->L-1;
-    c = log10(model->A[m]+1E-6);
-    b = (log10(model->A[m+1]+1E-6) - log10(model->A[m-1]+1E-6))/2.0;
-    a = log10(model->A[m-1]+1E-6) + b - c;
+    c = log10f(model->A[m]+1E-6);
+    b = (log10f(model->A[m+1]+1E-6) - log10f(model->A[m-1]+1E-6))/2.0;
+    a = log10f(model->A[m-1]+1E-6) + b - c;
     x = (w - m*model->Wo)/model->Wo;
 
     log_amp = a*x*x + b*x + c;
     //printf("m=%d A[m-1] %f A[m] %f A[m+1] %f w %f x %f log_amp %f\n", m,
     //	   model->A[m-1], 
-    //	   model->A[m], model->A[m+1], w, x, pow(10.0, log_amp));
+    //	   model->A[m], model->A[m+1], w, x, powf(10.0, log_amp));
     return log_amp;
 }
 
@@ -205,7 +201,7 @@ float sample_log_amp_quad_nl(
 			     float w_sample /* frequency of new samples    */
 )
 {
-    int   m,i;
+    int   m = 0,i;
     float a,b,c,x, log_amp, best_dist;
     float x_1, x1;
     float y_1, y0, y1;
@@ -217,8 +213,8 @@ float sample_log_amp_quad_nl(
 
     best_dist = 1E32;
     for (i=0; i<np; i++)
-	if (fabs(w[i] - w_sample) < best_dist) {
-	    best_dist = fabs(w[i] - w_sample);
+	if (fabsf(w[i] - w_sample) < best_dist) {
+	    best_dist = fabsf(w[i] - w_sample);
 	    m = i; 
 	}
     
@@ -230,9 +226,9 @@ float sample_log_amp_quad_nl(
     /* find polynomial coeffs */
 
     x_1 = w[m-1]- w[m]; x1 = w[m+1] - w[m];
-    y_1 = log10(A[m-1]+1E-6);
-    y0  = log10(A[m]+1E-6);
-    y1  = log10(A[m+1]+1E-6);
+    y_1 = log10f(A[m-1]+1E-6);
+    y0  = log10f(A[m]+1E-6);
+    y1  = log10f(A[m+1]+1E-6);
 
     c = y0;
     a = (y_1*x1 - y1*x_1 + c*x_1 - c*x1)/(x_1*x_1*x1 - x1*x1*x_1);
@@ -286,13 +282,13 @@ void resample_amp_fixed(MODEL *model,
     }
     
     for(i=0; i<RES_POINTS; i++) {
-	Ares[i] = pow(10.0,sample_log_amp_quad_nl(w, A, model->L, wres[i]));
+	Ares[i] = powf(10.0,sample_log_amp_quad_nl(w, A, model->L, wres[i]));
     }
 
     /* work out delta T vector for this frame */
 
     for(i=0; i<RES_POINTS; i++) {
-	AresdB[i] = 20.0*log10(Ares[i]);
+	AresdB[i] = 20.0*log10f(Ares[i]);
 	deltat[i] = AresdB[i] - AresdB_prev[i];
     }
 
@@ -335,7 +331,7 @@ float resample_amp_nl(MODEL *model, int m, float AresdB_prev[])
 
     for(i=0; i<RES_POINTS; i++) {
 	AresdB_q[i] = AresdB_prev[i] + deltat_q[i];
-	Ares[i] = pow(10.0, AresdB_q[i]/20.0);
+	Ares[i] = powf(10.0, AresdB_q[i]/20.0);
 	//printf("%d %f %f\n", i, AresdB[i], AresdB_q[i]);
     }
 
@@ -352,14 +348,14 @@ float resample_amp_nl(MODEL *model, int m, float AresdB_prev[])
     signal = noise = 0.0;
     
     for(i=1; i<model->L; i++) {
-	new_A = pow(10.0,sample_log_amp_quad_nl(wres, Ares, RES_POINTS, model->Wo*i));
-	signal += pow(model->A[i], 2.0);
-	noise  += pow(model->A[i] - new_A, 2.0);
+	new_A = powf(10.0,sample_log_amp_quad_nl(wres, Ares, RES_POINTS, model->Wo*i));
+	signal += powf(model->A[i], 2.0);
+	noise  += powf(model->A[i] - new_A, 2.0);
 	//printf("%f %f\n", model->A[i], new_A);
 	model->A[i] = new_A;
     }
 
-    snr = 10.0*log10(signal/noise);
+    snr = 10.0*log10f(signal/noise);
     printf("snr = %3.2f\n", snr);
     //exit(0);
     return snr;
@@ -392,7 +388,7 @@ float resample_amp(MODEL *model, int m)
     for(i=1; i<=model_m.L; i++) {
 	log_amp_dB    = 20.0*sample_log_amp_quad(model, i*model_m.Wo);
 	log_amp_dB   += n_db*(1.0 - 2.0*rand()/RAND_MAX);
-	model_m.A[i]  = pow(10,log_amp_dB/20.0);
+	model_m.A[i]  = powf(10,log_amp_dB/20.0);
     }
 
     //dump_resample(&model_m);
@@ -400,14 +396,14 @@ float resample_amp(MODEL *model, int m)
     signal = noise = 0.0;
     
     for(i=1; i<model->L/4; i++) {
-	new_A = pow(10,sample_log_amp_quad(&model_m, i*model->Wo));
-	signal += pow(model->A[i], 2.0);
-	noise  += pow(model->A[i] - new_A, 2.0);
+	new_A = powf(10,sample_log_amp_quad(&model_m, i*model->Wo));
+	signal += powf(model->A[i], 2.0);
+	noise  += powf(model->A[i] - new_A, 2.0);
 	//printf("%f %f\n", model->A[i], new_A);
 	model->A[i] = new_A;
     }
 
-    snr = 10.0*log10(signal/noise);
+    snr = 10.0*log10f(signal/noise);
     //printf("snr = %3.2f\n", snr);
     //exit(0);
     return snr;
@@ -440,7 +436,7 @@ void interpolate_lsp(
   float *ak_interp  /* interpolated aks for this frame                */
 		     )
 {
-    int   l,i;
+    int   i;
     float lsps[LPC_ORD],e;
     float snr;
 
@@ -467,7 +463,7 @@ void interpolate_lsp(
 
     /* Interpolate LPC energy in log domain */
 
-    e = pow(10.0, (log10(prev_e) + log10(next_e))/2.0);
+    e = powf(10.0, (log10f(prev_e) + log10f(next_e))/2.0);
 
     /* convert back to amplitudes */
 

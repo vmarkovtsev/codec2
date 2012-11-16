@@ -29,11 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-//#ifndef MATHNEON
 #include <math.h>
-//#else
-//#include "math_neon.h"
-//#endif
 
 #include "defines.h"
 #include "dump.h"
@@ -137,7 +133,7 @@ long quantise(const float * cb, float vec[], float w[], int k, int m, float *se)
    for(j=0; j<m; j++) {
 	e = 0.0;
 	for(i=0; i<k; i++)
-	    e += pow((cb[j*k+i]-vec[i])*w[i],2.0);
+	    e += powf((cb[j*k+i]-vec[i])*w[i],2.0);
 	if (e < beste) {
 	    beste = e;
 	    besti = j;
@@ -447,9 +443,9 @@ float lpc_model_amplitudes(
   #ifdef SIM_QUANT
   /* simulated LPC energy quantisation */
   {
-      float e = 10.0*log10(E);
+      float e = 10.0*log10f(E);
       e += 2.0*(1.0 - 2.0*(float)rand()/RAND_MAX);
-      E = pow(10.0,e/10.0);
+      E = powf(10.0,e/10.0);
   }
   #endif
 
@@ -511,19 +507,19 @@ void aks_to_M2(
 
   signal = noise = 0.0;
   for(m=1; m<=model->L; m++) {
-    am = floor((m - 0.5)*model->Wo/r + 0.5);
-    bm = floor((m + 0.5)*model->Wo/r + 0.5);
+    am = floorf((m - 0.5)*model->Wo/r + 0.5);
+    bm = floorf((m + 0.5)*model->Wo/r + 0.5);
     Em = 0.0;
 
     for(i=am; i<bm; i++)
       Em += Pw[i].real;
-    Am = sqrt(Em);
+    Am = sqrtf(Em);
 
-    signal += pow(model->A[m],2.0);
-    noise  += pow(model->A[m] - Am,2.0);
+    signal += powf(model->A[m],2.0);
+    noise  += powf(model->A[m] - Am,2.0);
     model->A[m] = Am;
   }
-  *snr = 10.0*log10(signal/noise);
+  *snr = 10.0*log10f(signal/noise);
 }
 
 /*---------------------------------------------------------------------------*\
@@ -544,7 +540,7 @@ int encode_Wo(float Wo)
     float norm;
 
     norm = (Wo - Wo_min)/(Wo_max - Wo_min);
-    index = floor(WO_LEVELS * norm + 0.5);
+    index = floorf(WO_LEVELS * norm + 0.5);
     if (index < 0 ) index = 0;
     if (index > (WO_LEVELS-1)) index = WO_LEVELS-1;
 
@@ -762,9 +758,9 @@ int encode_energy(float e)
     float e_max = E_MAX_DB;
     float norm;
 
-    e = 10.0*log10(e);
+    e = 10.0*log10f(e);
     norm = (e - e_min)/(e_max - e_min);
-    index = floor(E_LEVELS * norm + 0.5);
+    index = floorf(E_LEVELS * norm + 0.5);
     if (index < 0 ) index = 0;
     if (index > (E_LEVELS-1)) index = E_LEVELS-1;
 
@@ -790,7 +786,7 @@ float decode_energy(int index)
 
     step = (e_max - e_min)/E_LEVELS;
     e    = e_min + step*(index);
-    e    = pow(10.0,e/10.0);
+    e    = powf(10.0,e/10.0);
 
     return e;
 }

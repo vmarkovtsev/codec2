@@ -109,7 +109,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #define frexpf		frexpf_neon_hfp
 #define fmodf		fmodf_neon_hfp
 #define modf		modf_neon_hfp
-//#define sqrtf		sqrtf_neon_hfp
+#define sqrtf		sqrtf_neon_hfp
 #define invsqrtf	invsqrtf_neon_hfp
 #endif
 #ifdef DOUBLE2FLOAT_DROPIN
@@ -135,7 +135,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #define frexp		frexpf_neon_hfp
 #define fmod		fmodf_neon_hfp
 #define mod		modf_neon_hfp
-//#define sqrt		sqrtf_neon_hfp
+#define sqrt		sqrtf_neon_hfp
 #define invsqrt	invsqrtf_neon_hfp
 #endif
 #else
@@ -191,7 +191,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #define frexpf		frexpf_neon_sfp
 #define fmodf		fmodf_neon_sfp
 #define modf		modf_neon_sfp
-//#define sqrtf		sqrtf_neon_sfp
+#define sqrtf		sqrtf_neon_sfp
 #define invsqrtf	invsqrtf_neon_sfp
 #endif
 #ifdef DOUBLE2FLOAT_DROPIN
@@ -217,7 +217,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #define frexp		frexpf_neon_sfp
 #define fmod		fmodf_neon_sfp
 #define mod		modf_neon_sfp
-//#define sqrt		sqrtf_neon_sfp
+#define sqrt		sqrtf_neon_sfp
 #define invsqrt	invsqrtf_neon_sfp
 #endif
 #endif
