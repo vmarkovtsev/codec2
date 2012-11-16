@@ -243,7 +243,7 @@ float nlp(
     nlp->mem_y = mem_y;
 
     for(i=m-n; i<m; i++) {  /* FIR filter vector */
-			memmove(&nlp->mem_fir[0], &nlp->mem_fir[1], NLP_NTAP-1);
+			memmove(&nlp->mem_fir[0], &nlp->mem_fir[1], (NLP_NTAP-1) * sizeof(float));
 			nlp->mem_fir[NLP_NTAP-1] = nlp->sq[i];
 
 #ifndef NEON
@@ -306,8 +306,7 @@ float nlp(
            prev_Wo);
 
     /* Shift samples in buffer to make room for new samples */
-
-    memmove(&nlp->sq[0], &nlp->sq[n], m - n);
+    memmove(&nlp->sq[0], &nlp->sq[n], (m - n) * sizeof(float));
 
     /* return pitch and F0 estimate */
 
