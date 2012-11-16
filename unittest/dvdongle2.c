@@ -288,7 +288,7 @@ int main(int argc, char **argv) {
     c_in.power     = 0x0;
     c_in.control1  = 0x0;
 
-    //#define RATE2000
+#define RATE2000
 #ifdef RATE2000
     c_in.rate[0]   = 0x0028;  /* 2000 bit/s, no FEC */
     c_in.rate[1]   = 0x0000;
@@ -297,7 +297,6 @@ int main(int argc, char **argv) {
     c_in.rate[4]   = 0x6248;
 #endif
 
-#define RATE3600_1200
 #ifdef RATE3600_1200
     c_in.rate[0]   = 0x5048;  /* 3600 bit/s, 1200 bit/s FEC */
     c_in.rate[1]   = 0x0001;
