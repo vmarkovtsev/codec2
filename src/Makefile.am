@@ -7,12 +7,12 @@ MATHNEONCFLAGS=-I$(top_srcdir)/math-neon/include
 MATHNEONLIBS=$(top_builddir)/math-neon/libmath_neon.la
 endif
 
-AM_CFLAGS = -I../src -fPIC -Wall -O3 -funroll-loops -ffast-math -g $(FFTCFLAGS) $(MATHNEONCFLAGS)
+AM_CFLAGS = -I../src -fPIC -Wall -O2 -funroll-loops -ffast-math -g $(FFTCFLAGS) $(MATHNEONCFLAGS)
 AUTOMAKE_OPTS = gnu
 NAME = codec2
 AM_CPPFLAGS = $(AM_CFLAGS)
 
-D=$(top_srcdir)/src/codebook
+D=$(srcdir)/codebook
 
 # lsp quantisers
 
@@ -40,23 +40,60 @@ CODEBOOKSD= \
   $D/dlsp7.txt \
   $D/dlsp8.txt \
   $D/dlsp9.txt \
-  $D/dlsp10.txt
+  $D/dlsp10.txt 
 
 # lspd VQ quantisers
 
-CODEBOOKSDVQ= \
-  $D/dlsp1.txt \
-  $D/dlsp2.txt \
-  $D/dlsp3.txt \
-  $D/dlsp4.txt \
-  $D/dlsp5.txt \
-  $(top_srcdir)/unittest/lspd678910.txt
+CODEBOOKSVQ= \
+  $D/lsp1.txt \
+  $D/lsp2.txt \
+  $D/lsp3.txt \
+  $D/lsp4.txt \
+  $(top_srcdir)/unittest/lsp45678910.txt
 
-noinst_PROGRAMS = generate_codebook
+CODEBOOKSJND= \
+  $D/lsp1.txt \
+  $D/lsp2.txt \
+  $D/lsp3.txt \
+  $D/lsp4.txt \
+  $(top_srcdir)/unittest/lspjnd5-10.txt
+
+CODEBOOKSDT= \
+  $D/lspdt1.txt \
+  $D/lspdt2.txt \
+  $D/lspdt3.txt \
+  $D/lspdt4.txt \
+  $D/lspdt5.txt \
+  $D/lspdt6.txt \
+  $D/lspdt7.txt \
+  $D/lspdt8.txt \
+  $D/lspdt9.txt \
+  $D/lspdt10.txt
+
+CODEBOOKSJVM= \
+  $D/lspjvm1.txt \
+  $D/lspjvm2.txt \
+  $D/lspjvm3.txt
+
+CODEBOOKSVQANSSI= \
+  $D/lspvqanssi1.txt \
+  $D/lspvqanssi2.txt \
+  $D/lspvqanssi3.txt \
+  $D/lspvqanssi4.txt
+
+CODEBOOKSGE= \
+  $D/gecb.txt 
+
+noinst_PROGRAMS = generate_codebook genlspdtcb
 
 codebook.$(OBJEXT): codebook.c
 codebookd.$(OBJEXT): codebookd.c
-codebookdvq.$(OBJEXT): codebookdvq.c
+codebookdt.$(OBJEXT): codebookdt.c
+codebookvq.$(OBJEXT): codebookvq.c
+codebookjnd.$(OBJEXT): codebookjnd.c
+codebookjvm.$(OBJEXT): codebookjvm.c
+codebookvqanssi.$(OBJEXT): codebookvqanssi.c
+codebookge.$(OBJEXT): codebookge.c
 
 codebook.lo: codebook.c
 
@@ -64,13 +101,28 @@ codebook.c: generate_codebook $(CODEBOOKS)
 	./generate_codebook lsp_cb $(CODEBOOKS) > codebook.c
 
 codebookd.c: generate_codebook $(CODEBOOKSD)
-	./generate_codebook  lsp_cbd $(CODEBOOKSD) > codebookd.c
+	./generate_codebook lsp_cbd $(CODEBOOKSD) > codebookd.c
 
-codebookdvq.c: generate_codebook $(CODEBOOKSDVQ)
-	./generate_codebook  lsp_cbdvq $(CODEBOOKSDVQ) > codebookdvq.c
+codebookdt.c: generate_codebook $(CODEBOOKSDT)
+	./generate_codebook lsp_cbdt $(CODEBOOKSDT) > codebookdt.c
+
+codebookvq.c: generate_codebook $(CODEBOOKSVQ)
+	./generate_codebook lsp_cbvq $(CODEBOOKSVQ) > codebookvq.c
+
+codebookjnd.c: generate_codebook $(CODEBOOKSJND)
+	./generate_codebook lsp_cbjnd $(CODEBOOKSJND) > codebookjnd.c
+
+codebookjvm.c: generate_codebook $(CODEBOOKSJVM)
+	./generate_codebook lsp_cbjvm $(CODEBOOKSJVM) > codebookjvm.c
+
+codebookvqanssi.c: generate_codebook $(CODEBOOKSVQANSSI)
+	./generate_codebook lsp_cbvqanssi $(CODEBOOKSVQANSSI) > codebookvqanssi.c
+
+codebookge.c: generate_codebook $(CODEBOOKSGE)
+	./generate_codebook ge_cb $(CODEBOOKSGE) > codebookge.c
 
 clean-local:
-	-rm -f codebook.c codebookd.c codebookdvq.c
+	-rm -f codebook.c codebookd.c codebookdvq.c codebookjnd.c codebookdt.c codebookjvm.c codebookge.c codebookvqanssi.c
 
 lib_LTLIBRARIES	= libcodec2.la
 libcodec2_la_SOURCES = dump.c \
@@ -79,8 +131,11 @@ nlp.c \
 postfilter.c \
 sine.c \
 codec2.c \
-fft.c \
+comp.c \
+fifo.c \
+fdmdv.c \
 kiss_fft.c \
+fft.c \
 interp.c \
 lsp.c \
 phase.c \
@@ -88,31 +143,21 @@ quantise.c \
 pack.c \
 codebook.c \
 codebookd.c \
-codebookdvq.c
+codebookvq.c \
+codebookjnd.c \
+codebookjvm.c \
+codebookvqanssi.c \
+codebookdt.c \
+codebookge.c 
+
 
 libcodec2_la_CFLAGS = $(AM_CFLAGS)
 libcodec2_la_LDFLAGS = $(LIBS) $(FFTLIBS) $(MATHNEONLIBS)
 
 library_includedir = $(prefix)/include
-library_include_HEADERS	= codec2.h \
-defines.h \
-kiss_fft.h\
-_kiss_fft_guts.h \
-fft.h \
-interp.h \
-lsp.h \
-phase.h \
-quantise.h \
-comp.h \
-dump.h \
-lpc.h \
-nlp.h  \
-postfilter.h \
-sine.h \
-codec2_internal.h \
-glottal.c
+library_include_HEADERS	= codec2.h
 
-bin_PROGRAMS = c2demo c2enc c2dec c2sim
+bin_PROGRAMS = c2demo c2enc c2dec c2sim fdmdv_get_test_bits fdmdv_mod fdmdv_demod fdmdv_put_test_bits fdmdv_interleave
 
 c2demo_SOURCES = c2demo.c
 c2demo_LDADD = $(lib_LTLIBRARIES) $(FFTLIBS) $(MATHNEONLIBS)
@@ -126,6 +171,22 @@ c2dec_SOURCES = c2dec.c
 c2dec_LDADD = $(lib_LTLIBRARIES) $(FFTLIBS) $(MATHNEONLIBS)
 c2dec_LDFLAGS = $(LIBS)
 
-c2sim_SOURCES = c2sim.c
+c2sim_SOURCES = c2sim.c ampexp.c phaseexp.c
 c2sim_LDADD = $(lib_LTLIBRARIES) $(FFTLIBS) $(MATHNEONLIBS)
 c2sim_LDFLAGS = $(LIBS)
+
+fdmdv_get_test_bits_SOURCES = fdmdv_get_test_bits.c fdmdv.c kiss_fft.c fft.c comp.c
+fdmdv_get_test_bits_LDFLAGS = $(LIBS) $(FFTLIBS) $(MATHNEONLIBS)
+
+fdmdv_mod_SOURCES = fdmdv_mod.c fdmdv.c kiss_fft.c fft.c comp.c
+fdmdv_mod_LDFLAGS = $(LIBS) $(FFTLIBS) $(MATHNEONLIBS)
+
+fdmdv_demod_SOURCES = fdmdv_demod.c fdmdv.c kiss_fft.c fft.c octave.c comp.c
+fdmdv_demod_LDFLAGS = $(LIBS) $(FFTLIBS) $(MATHNEONLIBS)
+
+fdmdv_put_test_bits_SOURCES = fdmdv_put_test_bits.c fdmdv.c kiss_fft.c fft.c comp.c
+fdmdv_put_test_bits_LDFLAGS = $(LIBS) $(FFTLIBS) $(MATHNEONLIBS)
+
+fdmdv_interleave_SOURCES = fdmdv_interleave.c comp.c
+fdmdv_interleave_LDFLAGS = $(LIBS) $(FFTLIBS) $(MATHNEONLIBS)
+

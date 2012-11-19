@@ -35,4 +35,6 @@ typedef struct {
   float imag;
 } COMP;
 
+void init_comp_array(COMP *ptr, int size);
+
 #endif

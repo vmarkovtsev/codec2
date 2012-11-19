@@ -28,9 +28,9 @@
 #ifndef __PHASE__
 #define __PHASE__
 
-#include "kiss_fft.h"
+#include "fft.h"
 
-void phase_synth_zero_order(kiss_fft_cfg fft_dec_cfg, 
+void phase_synth_zero_order(fft_cfg fft_dec_cfg,
 			    MODEL *model, 
 			    float aks[], 
                             float *ex_phase, 

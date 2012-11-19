@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------*\
-                                                 
-  FILE........: fft.c                                                  
-  AUTHOR......: Bruce Robertson                                      
-  DATE CREATED: 20/11/2010                            
-                                                         
-  Bridging function to the kiss_fft package.      
-                                                               
+
+  FILE........: fft.c
+  AUTHOR......: Markovtsev Vadim
+  DATE CREATED: 19/11/12
+
+  FFT engine abstraction layer.
+
 \*---------------------------------------------------------------------------*/
 
 /*
-  Copyright (C) 2010 Bruce Robertson
+  Copyright (C) 2009 David Rowe
 
   All rights reserved.
 
@@ -25,200 +25,60 @@
   along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
-/*
- Added support for libavcodec FFT - Markovtsev Vadim <v.markovtsev@samsung.com>
- Added some minor NEON optimizations - Markovtsev Vadim <v.markovtsev@samsung.com>
-*/
-
-
+#include "fft.h"
 #include <assert.h>
-#ifdef NEON
-#include <arm_neon.h>
-#endif
-#ifdef KISS_FFT
-#include <kiss_fft.h>
-
-/*---------------------------------------------------------------------------*\
-                                                                            
-                                GLOBALS                                       
-                                                                             
-\*---------------------------------------------------------------------------*/
-
-kiss_fft_cpx *fin;
-kiss_fft_cpx *fout;
-kiss_fft_cfg cfg_forward;
-kiss_fft_cfg cfg_reverse;
-
-/*---------------------------------------------------------------------------*\
-                                                                             
-  initialize_fft(int n)                                                                  
-                                                                             
-  Initialisation function for kiss_fft. This assumes that all calls to fft() 
-  use the same datatypes and are one arrays of the same size.
-
-\*---------------------------------------------------------------------------*/
-
-void
-initialize_fft (int n)
-{
-  fin = KISS_FFT_MALLOC (n * sizeof (kiss_fft_cpx));
-  assert(fin != NULL);
-  fout = KISS_FFT_MALLOC (n * sizeof (kiss_fft_cpx));
-  assert(fout != NULL);
-  cfg_forward = kiss_fft_alloc (n, 0, NULL, NULL);
-  assert(cfg_forward != NULL);
-  cfg_reverse = kiss_fft_alloc (n, 1, NULL, NULL);
-  assert(cfg_reverse != NULL);
-}
-
-/*---------------------------------------------------------------------------*\
-                                                                             
-  fft(float x[], int n, int isign)                                                
-  Function that calls kiss_fft with the signature of four1 from NRC.
-
-\*---------------------------------------------------------------------------*/
-
-
-void
-fft (float x[], int n, int isign)
-{
-  if (cfg_forward == NULL)
-    {
-      initialize_fft (n);
-    }
-  int c;
-#ifndef NEON
-  for (c = 0; c < n * 2; c += 2)
-    {
-      fin[c / 2].r = x[c];
-      fin[c / 2].i = -x[c + 1];
-    }
-#else
-  const float32_t conjmem[4] = { 1.0f, -1.0f, 1.0f, -1.0f };
-  const float32x4_t conjvec = vld1q_f32(conjmem);
-  for (c = 0; c < n; c += 2)
-		{
-			float32x4_t cmplxpair = vld1q_f32(&x[c * 2]);
-			cmplxpair = vmulq_f32(cmplxpair, conjvec);
-			vst1q_f32((float32_t *)&fin[c], cmplxpair);
-		}
-#endif
-  kiss_fft_cfg cfg;
-  if (isign == -1)
-    {
-      cfg = cfg_reverse;
-    }
-  else
-    {
-      cfg = cfg_forward;
-    }
-  kiss_fft (cfg, fin, fout);
-#ifndef NEON
-  for (c = 0; c < n * 2; c += 2)
-    {
-      x[c] = fout[(c) / 2].r;
-      x[c + 1] = -fout[(c) / 2].i;
-    }
-#else
-  for (c = 0; c < n; c += 2)
-		{
-			float32x4_t cmplxpair = vld1q_f32((float32_t *)&fout[c]);
-			cmplxpair = vmulq_f32(cmplxpair, conjvec);
-			vst1q_f32(&x[c * 2], cmplxpair);
-		}
-#endif
-}
-
-#else  // #ifdef KISS_FFT
 #ifdef LIBAVCODEC_FFT
 #include <malloc.h>
-#include <libavcodec/avfft.h>
-
-FFTComplex *fftbuffer = NULL;
-FFTContext *fftcontext[2] = { NULL, NULL };
-
-int log2int(int n)
-{
-	int res = 0;
-	while (n >>= 1)
-	  {
-	    res++;
-	  }
-	return res;
-}
-
-FFTContext *
-initialize_fft (int n, int isign)
-{
-	static int length = 0;
-	int inverse = (isign == -1);
-	if (length < n || fftbuffer == NULL)
-	  {
-		  if (fftbuffer == NULL)
-		    {
-	         fftbuffer = malloc(sizeof(FFTComplex) * n);
-		    }
-		  else
-		    {
-			    fftbuffer = realloc(fftbuffer, sizeof(FFTComplex) * n);
-		    }
-		  length = n;
-		  if (fftcontext[inverse] != NULL)
-				{
-					av_fft_end(fftcontext[inverse]);
-					fftcontext[inverse] = NULL;
-				}
-	  }
-	if (fftcontext[inverse] == NULL)
-		{
-			fftcontext[inverse] = av_fft_init(log2int(n), inverse);
-			assert(fftcontext[inverse] != NULL && "av_fft_init() failed");
-		}
-	return fftcontext[inverse];
-}
-
-void
-fft (float x[], int n, int isign)
-{
-	FFTContext *cntxt = initialize_fft (n, isign);
-	int c;
-#ifndef NEON
-	for (c = 0; c < n * 2; c += 2)
-		{
-			fftbuffer[c / 2].re = x[c];
-			fftbuffer[c / 2].im = -x[c + 1];
-		}
-#else
-	const float32_t conjmem[4] = { 1.0f, -1.0f, 1.0f, -1.0f };
-	const float32x4_t conjvec = vld1q_f32(conjmem);
-	for (c = 0; c < n; c += 2)
-		{
-			float32x4_t cmplxpair = vld1q_f32(&x[c * 2]);
-			cmplxpair = vmulq_f32(cmplxpair, conjvec);
-			vst1q_f32((float32_t *)&fftbuffer[c], cmplxpair);
-		}
+#include <string.h>
 #endif
-	av_fft_permute(cntxt, fftbuffer);
-	av_fft_calc(cntxt, fftbuffer);
-#ifndef NEON
-	for (c = 0; c < n * 2; c += 2)
-		{
-			x[c] = fftbuffer[c / 2].re;
-			x[c + 1] = -fftbuffer[c / 2].im;
-		}
+
+#ifdef LIBAVCODEC_FFT
+static int log2int(int n)
+{
+    int res = 0;
+    while (n >>= 1)
+      {
+        res++;
+      }
+    return res;
+}
+#endif
+
+fft_cfg fft_new(int n, int inverse) {
+#ifdef KISS_FFT
+    kiss_fft_cfg cfg = kiss_fft_alloc (n, inverse, NULL, NULL);
+    return cfg;
+#elif defined(LIBAVCODEC_FFT)
+    FFTContext *ctxt = av_fft_init(log2int(n), inverse);
+    if (ctxt == NULL) return NULL;
+    fft_cfg cfg = malloc(sizeof(*cfg));
+    cfg->context = ctxt;
+    cfg->size = sizeof(COMP) * n;
+    return cfg;
 #else
-	for (c = 0; c < n; c += 2)
-		{
-			float32x4_t cmplxpair = vld1q_f32((float32_t *)&fftbuffer[c]);
-			cmplxpair = vmulq_f32(cmplxpair, conjvec);
-			vst1q_f32(&x[c * 2], cmplxpair);
-		}
+#error FFT engine was not defined
 #endif
 }
 
+void fft_delete(const fft_cfg cfg) {
+#ifdef KISS_FFT
+    KISS_FFT_FREE(cfg);
+#elif defined(LIBAVCODEC_FFT)
+    av_fft_end(cfg->context);
+    free(cfg);
 #else
+#error FFT engine was not defined
+#endif
+}
 
-#error No FFT implementation was chosen!
-
-#endif  // #ifdef LIBAVCODEC_FFT
-#endif  // #ifdef KISS_FFT
+void fft_do(const fft_cfg cfg, const COMP *in, COMP *out) {
+#ifdef KISS_FFT
+    fft_do(cfg, in, out);
+#elif defined(LIBAVCODEC_FFT)
+    memcpy(out, in, cfg->size);
+    av_fft_permute(cfg->context, (FFTComplex *)out);
+    av_fft_calc(cfg->context, (FFTComplex *)out);
+#else
+#error FFT engine was not defined
+#endif
+}

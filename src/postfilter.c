@@ -27,6 +27,7 @@
   along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #ifndef MATHNEON
@@ -35,7 +36,7 @@
 #include <math.h>
 #define NO_DROPIN
 #include "math_neon.h"
-#define log10f		log10f_neon
+#define log10f     log10f_neon
 #endif
 
 #include "defines.h"
@@ -51,6 +52,11 @@
 
 #define BG_THRESH 40.0     /* only consider low levels signals for bg_est */
 #define BG_BETA    0.1     /* averaging filter constant                   */
+#define BG_MARGIN  6.0     /* harmonics this far above BG noise are 
+			      randomised.  Helped make bg noise less 
+			      spikey (impulsive) for mmt1, but speech was
+                              perhaps a little rougher.
+			   */
 
 /*---------------------------------------------------------------------------*\
 
@@ -68,7 +74,7 @@
   (5-12) are required to transmit the frequency selective voicing
   information.  Mixed excitation also requires accurate voicing
   estimation (parameter estimators always break occasionally under
-  exceptional condition).
+  exceptional conditions).
 
   In our case we use a post filter approach which requires no
   additional bits to be transmitted.  The decoder measures the average
@@ -112,6 +118,7 @@ void postfilter(
   for(m=1; m<=model->L; m++)
       e += model->A[m]*model->A[m];
 
+  assert(e > 0.0);
   e = 10.0*log10f(e/model->L);
 
   /* If beneath threhold, update bg estimate.  The idea
@@ -128,7 +135,7 @@ void postfilter(
   uv = 0;
   if (model->voiced)
       for(m=1; m<=model->L; m++)
-	  if (20.0*log10f(model->A[m]) < *bg_est) {
+	  if (20.0*log10f(model->A[m]) < (*bg_est + BG_MARGIN)) {
 	      model->phi[m] = TWO_PI*(float)rand()/RAND_MAX;
 #ifdef NEON
 	      model->tanphi[m] = tanf(model->phi[m]);

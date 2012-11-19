@@ -28,7 +28,7 @@
 #ifndef __PHASEEXP__
 #define __PHASEEXP__
 
-#include "kiss_fft.h"
+#include "fft.h"
 
 struct PEXP;
 

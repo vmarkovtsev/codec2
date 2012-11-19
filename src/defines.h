@@ -68,10 +68,10 @@
 typedef struct {
   float Wo;		/* fundamental frequency estimate in radians  */
   int   L;		/* number of harmonics                        */
-  float A[MAX_AMP];	/* amplitiude of each harmonic                */
-  float phi[MAX_AMP];	/* phase of each harmonic                     */
+  float A[MAX_AMP+1];	/* amplitiude of each harmonic                */
+  float phi[MAX_AMP+1];	/* phase of each harmonic                     */
 #ifdef NEON
-  float tanphi[MAX_AMP];	/* tangent of phase of each harmonic                     */
+  float tanphi[MAX_AMP+1];	/* tangent of phase of each harmonic                     */
 #endif
   int   voiced;	        /* non-zero if this frame is voiced           */
 } MODEL;
@@ -84,8 +84,14 @@ struct lsp_codebook {
     int			m;        /* elements in codebook	*/
     const float	*	cb;	  /* The elements		*/
 };
+
 extern const struct lsp_codebook lsp_cb[];
 extern const struct lsp_codebook lsp_cbd[];
-extern const struct lsp_codebook lsp_cbdvq[];
+extern const struct lsp_codebook lsp_cbvq[];
+extern const struct lsp_codebook lsp_cbjnd[];
+extern const struct lsp_codebook lsp_cbdt[];
+extern const struct lsp_codebook lsp_cbjvm[];
+extern const struct lsp_codebook lsp_cbvqanssi[];
+extern const struct lsp_codebook ge_cb[];
 
 #endif

@@ -28,10 +28,10 @@
 #ifndef __INTERP__
 #define __INTERP__
 
-#include "kiss_fft.h"
+#include "fft.h"
 
 void interpolate(MODEL *interp, MODEL *prev, MODEL *next);
-void interpolate_lsp(kiss_fft_cfg  fft_dec_cfg,
+void interpolate_lsp(fft_cfg  fft_dec_cfg,
 		     MODEL *interp, MODEL *prev, MODEL *next, 
 		     float *prev_lsps, float  prev_e,
 		     float *next_lsps, float  next_e,

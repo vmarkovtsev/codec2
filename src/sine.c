@@ -33,15 +33,14 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-
 #ifndef MATHNEON
 #include <math.h>
 #else
 #include <math.h>
 #define NO_DROPIN
 #include "math_neon.h"
-#define log10f		log10f_neon
-#define atan2f		atan2f_neon
+#define log10f     log10f_neon
+#define atan2f     atan2f_neon
 #endif
 
 #include "defines.h"
@@ -75,9 +74,10 @@ void hs_pitch_refinement(MODEL *model, COMP Sw[], float pmin, float pmax,
 
 \*---------------------------------------------------------------------------*/
 
-void make_analysis_window(float w[],COMP W[])
+void make_analysis_window(fft_cfg fft_fwd_cfg, float w[], COMP W[])
 {
   float m;
+  COMP  wshift[FFT_ENC];
   COMP  temp;
   int   i,j;
 
@@ -130,17 +130,14 @@ void make_analysis_window(float w[],COMP W[])
      |---------|     |---------|      
        NW/2              NW/2
   */
+  init_comp_array(wshift, FFT_ENC);
 
-  for(i=0; i<FFT_ENC; i++) {
-    W[i].real = 0.0;
-    W[i].imag = 0.0;
-  }
   for(i=0; i<NW/2; i++)
-    W[i].real = w[i+M/2];
+    wshift[i].real = w[i+M/2];
   for(i=FFT_ENC-NW/2,j=M/2-NW/2; i<FFT_ENC; i++,j++)
-    W[i].real = w[j];
+   wshift[i].real = w[j];
 
-  fft(&W[0].real,FFT_ENC,-1);         /* "Numerical Recipes in C" FFT */
+  fft_do(fft_fwd_cfg, wshift, W);
 
   /* 
       Re-arrange W[] to be symmetrical about FFT_ENC/2.  Makes later 
@@ -207,29 +204,26 @@ float hpf(float x, float states[])
 
 \*---------------------------------------------------------------------------*/
 
-void dft_speech(COMP Sw[], float Sn[], float w[])
+void dft_speech(fft_cfg fft_fwd_cfg, COMP Sw[], float Sn[], float w[])
 {
-  int i;
-  
-  for(i=0; i<FFT_ENC; i++) {
-    Sw[i].real = 0.0;
-    Sw[i].imag = 0.0;
-  }
+  int  i;
+  COMP sw[FFT_ENC];
 
+  init_comp_array(sw, FFT_ENC);
   /* Centre analysis window on time axis, we need to arrange input
      to FFT this way to make FFT phases correct */
   
   /* move 2nd half to start of FFT input vector */
 
   for(i=0; i<NW/2; i++)
-    Sw[i].real = Sn[i+M/2]*w[i+M/2];
+    sw[i].real = Sn[i+M/2]*w[i+M/2];
 
   /* move 1st half to end of FFT input vector */
 
   for(i=0; i<NW/2; i++)
-    Sw[FFT_ENC-NW/2+i].real = Sn[i+M/2-NW/2]*w[i+M/2-NW/2];
+    sw[FFT_ENC-NW/2+i].real = Sn[i+M/2-NW/2]*w[i+M/2-NW/2];
 
-  fft(&Sw[0].real,FFT_ENC,-1);
+  fft_do(fft_fwd_cfg, sw, Sw);
 }
 
 /*---------------------------------------------------------------------------*\
@@ -374,9 +368,9 @@ void estimate_amplitudes(MODEL *model, COMP Sw[], COMP W[])
     /* Estimate phase of harmonic */
 
     model->phi[m] = atan2f(Sw[b].imag,Sw[b].real);
-#ifdef NEON
-    model->tanphi[m] = Sw[b].imag / Sw[b].real;
-#endif
+    #ifdef NEON
+        model->tanphi[m] = Sw[b].imag / Sw[b].real;
+    #endif
   }
 }
 
@@ -400,7 +394,7 @@ float est_voicing_mbe(
     COMP   Ew[],          /* DFT of error                          */
     float prev_Wo)
 {
-    int   i,l,al,bl,m;    /* loop variables */
+    int   l,al,bl,m;    /* loop variables */
     COMP  Am;             /* amplitude sample for this band */
     int   offset;         /* centers Hw[] about current harmonic */
     float den;            /* denominator of Am expression */
@@ -410,19 +404,16 @@ float est_voicing_mbe(
     float elow, ehigh, eratio;
     float dF0, sixty;
 
-    sig = 0.0;
+    sig = 1E-4;
     for(l=1; l<=model->L/4; l++) {
 	sig += model->A[l]*model->A[l];
     }
-    for(i=0; i<FFT_ENC; i++) {
-	Sw_[i].real = 0.0;
-	Sw_[i].imag = 0.0;
-	Ew[i].real = 0.0;
-	Ew[i].imag = 0.0;
-    }
+
+    init_comp_array(Sw_, FFT_ENC);
+    init_comp_array(Ew, FFT_ENC);
 
     Wo = model->Wo;
-    error = 0.0;
+    error = 1E-4;
 
     /* Just test across the harmonics in the first 1000 Hz (L/4) */
 
@@ -467,13 +458,13 @@ float est_voicing_mbe(
     /* post processing, helps clean up some voicing errors ------------------*/
 
     /* 
-       Determine the ratio of low freancy to high frequency energy,
+       Determine the ratio of low freqency to high frequency energy,
        voiced speech tends to be dominated by low frequency energy,
        unvoiced by high frequency. This measure can be used to
        determine if we have made any gross errors.
     */
 
-    elow = ehigh = 0.0;
+    elow = ehigh = 1E-4;
     for(l=1; l<=model->L/2; l++) {
 	elow += model->A[l]*model->A[l];
     }
@@ -498,15 +489,19 @@ float est_voicing_mbe(
 	    model->voiced = 0;
 
 	/* If pitch is jumping about it's likely this is UV */
+	
+	/* 13 Feb 2012 - this seems to add some V errors so comment out for now.  Maybe
+	   double check on bg noise files
 
-	dF0 = (model->Wo - prev_Wo)*FS/TWO_PI;
-	if (fabsf(dF0) > 15.0)
-	    model->voiced = 0;
+	   dF0 = (model->Wo - prev_Wo)*FS/TWO_PI;
+	   if (fabsf(dF0) > 15.0) 
+	   model->voiced = 0;
+	*/
 
 	/* A common source of Type 2 errors is the pitch estimator
 	   gives a low (50Hz) estimate for UV speech, which gives a
 	   good match with noise due to the close harmoonic spacing.
-	   These errors are much more common than people with 50Hz
+	   These errors are much more common than people with 50Hz3
 	   pitch, so we have just a small eratio threshold. */
 
 	sixty = 60.0*TWO_PI/FS;
@@ -563,6 +558,7 @@ void make_synthesis_window(float Pn[])
 \*---------------------------------------------------------------------------*/
 
 void synthesise(
+  fft_cfg fft_inv_cfg, 
   float  Sn_[],		/* time domain synthesised signal              */
   MODEL *model,		/* ptr to model parameters for this frame      */
   float  Pn[],		/* time domain Parzen window                   */
@@ -571,6 +567,7 @@ void synthesise(
 {
     int   i,l,j,b;	/* loop variables */
     COMP  Sw_[FFT_DEC];	/* DFT of synthesised signal */
+    COMP  sw_[FFT_DEC];	/* synthesised signal */
 
     if (shift) {
 	/* Update memories */
@@ -581,16 +578,13 @@ void synthesise(
 	Sn_[N-1] = 0.0;
     }
 
-    for(i=0; i<FFT_DEC; i++) {
-	Sw_[i].real = 0.0;
-	Sw_[i].imag = 0.0;
-    }
+    init_comp_array(Sw_, FFT_DEC);
 
     /*
-      Nov 2010 - found that synthesis using time domain cosf( functions
+      Nov 2010 - found that synthesis using time domain cosf() functions
       gives better results for synthesis frames greater than 10ms.  Inverse
       FFT synthesis using a 512 pt FFT works well for 10ms window.  I think
-      (but am not sure) that the problem is realted to the quantisation of
+      (but am not sure) that the problem is related to the quantisation of
       the harmonic frequencies to the FFT bin size, e.g. there is a 
       8000/512 Hz step between FFT bins.  For some reason this makes
       the speech from longer frame > 10ms sound poor.  The effect can also
@@ -604,49 +598,52 @@ void synthesise(
 #ifdef FFT_SYNTHESIS
     /* Now set up frequency domain synthesised speech */
     for(l=1; l<=model->L; l++) {
-	b = floorf(l*model->Wo*FFT_DEC/TWO_PI + 0.5);
-	if (b > ((FFT_DEC/2)-1)) {
-		b = (FFT_DEC/2)-1;
-	}
+        //for(l=model->L/2; l<=model->L; l++) {
+        //for(l=1; l<=model->L/4; l++) {
+        b = floorf(l*model->Wo*FFT_DEC/TWO_PI + 0.5);
+        if (b > ((FFT_DEC/2)-1)) {
+            b = (FFT_DEC/2)-1;
+        }
+        // So that's why we save the tangent value: to cut on calculations of sin and cos
 #ifndef NEON
-	Sw_[b].real = model->A[l]*cosf(model->phi[l]);
-	Sw_[b].imag = model->A[l]*sinf(model->phi[l]);
+       Sw_[b].real = model->A[l]*cosf(model->phi[l]);
+       Sw_[b].imag = model->A[l]*sinf(model->phi[l]);
 #else
-	float tanphi = model->tanphi[l];
-	float tmp = 1.0f + tanphi * tanphi;
-	float real = model->A[l]*sqrtf(1.0f / tmp);
-	float imag = model->A[l]*sqrtf(1.0f - 1.0f / tmp);
-	// Get the quadrant
-	float sinm = 1.0f, cosm = 1.0f;
-	if (model->phi[l] < 0) {
-		tmp = fmodf(-model->phi[l], TWO_PI);
-		sinm = -1.0f;
-	} else {
-		tmp = fmodf(model->phi[l], TWO_PI);
-	}
-	if (tmp < M_PI) {  // [0, pi]
-		if (tmp > M_PI_2) {  // [pi/2, pi]
-			cosm = -1.0f;
-		}
-	} else {
-		sinm *= -1.0f;  // [pi, 2pi]
-		if (tmp < M_PI + M_PI_2) {  // [pi, 1.5pi]
-			cosm = -1.0f;
-		}
-	}
-	Sw_[b].real = real * cosm;
-	Sw_[b].imag = imag * sinm;
+       float tanphi = model->tanphi[l];
+       float tmp = 1.0f + tanphi * tanphi;
+       float real = model->A[l]*sqrtf(1.0f / tmp);
+       float imag = model->A[l]*sqrtf(1.0f - 1.0f / tmp);
+       // Get the quadrant
+       float sinm = 1.0f, cosm = 1.0f;
+       if (model->phi[l] < 0) {
+           tmp = fmodf(-model->phi[l], TWO_PI);
+           sinm = -1.0f;
+       } else {
+           tmp = fmodf(model->phi[l], TWO_PI);
+       }
+       if (tmp < M_PI) {  // [0, pi]
+           if (tmp > M_PI_2) {  // [pi/2, pi]
+               cosm = -1.0f;
+           }
+       } else {
+           sinm *= -1.0f;  // [pi, 2pi]
+           if (tmp < M_PI + M_PI_2) {  // [pi, 1.5pi]
+              cosm = -1.0f;
+           }
+       }
+       Sw_[b].real = real * cosm;
+       Sw_[b].imag = imag * sinm;
 #endif
-	Sw_[FFT_DEC-b].real = Sw_[b].real;
-	Sw_[FFT_DEC-b].imag = -Sw_[b].imag;
+        Sw_[FFT_DEC-b].real = Sw_[b].real;
+        Sw_[FFT_DEC-b].imag = -Sw_[b].imag;
     }
 
     /* Perform inverse DFT */
 
-    fft(&Sw_[0].real,FFT_DEC,1);
+    fft_do(fft_inv_cfg, Sw_, sw_);
 #else
     /*
-       Direct time domain synthesis using the cosf( function.  Works
+       Direct time domain synthesis using the cosf() function.  Works
        well at 10ms and 20ms frames rates.  Note synthesis window is
        still used to handle overlap-add between adjacent frames.  This
        could be simplified as we don't need to synthesise where Pn[]
@@ -654,24 +651,24 @@ void synthesise(
     */
     for(l=1; l<=model->L; l++) {
 	for(i=0,j=-N+1; i<N-1; i++,j++) {
-	    Sw_[FFT_DEC-N+1+i].real += 2.0*model->A[l]*cos_j*model->Wo*l + model->phi[l]);
+	    Sw_[FFT_DEC-N+1+i].real += 2.0*model->A[l]*cosf(j*model->Wo*l + model->phi[l]);
 	}
  	for(i=N-1,j=0; i<2*N; i++,j++)
-	    Sw_[j].real += 2.0*model->A[l]*cos_j*model->Wo*l + model->phi[l]);
+	    Sw_[j].real += 2.0*model->A[l]*cosf(j*model->Wo*l + model->phi[l]);
     }	
 #endif
 
     /* Overlap add to previous samples */
 
     for(i=0; i<N-1; i++) {
-	Sn_[i] += Sw_[FFT_DEC-N+1+i].real*Pn[i];
+	Sn_[i] += sw_[FFT_DEC-N+1+i].real*Pn[i];
     }
 
     if (shift)
 	for(i=N-1,j=0; i<2*N; i++,j++)
-	    Sn_[i] = Sw_[j].real*Pn[i];
+	    Sn_[i] = sw_[j].real*Pn[i];
     else
 	for(i=N-1,j=0; i<2*N; i++,j++)
-	    Sn_[i] += Sw_[j].real*Pn[i];
+	    Sn_[i] += sw_[j].real*Pn[i];
 }
 

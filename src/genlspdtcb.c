@@ -72,7 +72,7 @@ void create_codebook_text_file(char filename[], float lsp[],
     for(i=0; i<rows; i++)
 	digits[i] = 0;
 
-    fprintf(f, "%d %d\n", rows, (int)pow(cols, rows));
+    fprintf(f, "%d %d\n", rows, (int)powf(cols, rows));
 
     do {
 	for(i=0; i<rows; i++)

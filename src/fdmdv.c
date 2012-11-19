@@ -42,7 +42,7 @@
 #include "rn.h"
 #include "test_bits.h"
 #include "pilot_coeff.h"
-#include "kiss_fft.h"
+#include "fft.h"
 #include "hanning.h"
 #include "os.h"
 
@@ -104,7 +104,7 @@ static COMP cadd(COMP a, COMP b)
 
 static float cabsolute(COMP a)
 {
-    return sqrt(pow(a.real, 2.0) + pow(a.imag, 2.0));
+    return sqrtf(powf(a.real, 2.0) + powf(a.imag, 2.0));
 }
 
 /*---------------------------------------------------------------------------*\
@@ -122,7 +122,7 @@ static float cabsolute(COMP a)
 struct FDMDV * CODEC2_WIN32SUPPORT fdmdv_create(void)
 {
     struct FDMDV *f;
-    int           c, i, k;
+    int           c, i;
     float         carrier_freq;
 
     assert(FDMDV_BITS_PER_FRAME == NC*NB);
@@ -145,52 +145,39 @@ struct FDMDV * CODEC2_WIN32SUPPORT fdmdv_create(void)
 	f->prev_rx_symbols[c].real = 1.0;
 	f->prev_rx_symbols[c].imag = 0.0;
 
-	for(k=0; k<NSYM; k++) {
-	    f->tx_filter_memory[c][k].real = 0.0;
-	    f->tx_filter_memory[c][k].imag = 0.0;
-	}
-
-	for(k=0; k<NFILTER; k++) {
-	    f->rx_filter_memory[c][k].real = 0.0;
-	    f->rx_filter_memory[c][k].imag = 0.0;
-	}
+	init_comp_array(f->tx_filter_memory[c], NSYM);
+	init_comp_array(f->rx_filter_memory[c], NFILTER);
 
 	/* Spread initial FDM carrier phase out as far as possible.
            This helped PAPR for a few dB.  We don't need to adjust rx
            phase as DQPSK takes care of that. */
 	
-	f->phase_tx[c].real = cos(2.0*PI*c/(NC+1));
- 	f->phase_tx[c].imag = sin(2.0*PI*c/(NC+1));
+	f->phase_tx[c].real = cosf(2.0*PI*c/(NC+1));
+ 	f->phase_tx[c].imag = sinf(2.0*PI*c/(NC+1));
 
 	f->phase_rx[c].real = 1.0;
  	f->phase_rx[c].imag = 0.0;
 
-	for(k=0; k<NT*P; k++) {
-	    f->rx_filter_mem_timing[c][k].real = 0.0;
-	    f->rx_filter_mem_timing[c][k].imag = 0.0;
-	}
- 	for(k=0; k<NFILTERTIMING; k++) {
-	    f->rx_baseband_mem_timing[c][k].real = 0.0;
-	    f->rx_baseband_mem_timing[c][k].imag = 0.0;
-	}
+	init_comp_array(f->rx_filter_mem_timing[c], NT*P);
+	init_comp_array(f->rx_baseband_mem_timing[c], NFILTERTIMING);
   }
     
     /* Set up frequency of each carrier */
 
     for(c=0; c<NC/2; c++) {
 	carrier_freq = (-NC/2 + c)*FSEP + FCENTRE;
-	f->freq[c].real = cos(2.0*PI*carrier_freq/FS);
- 	f->freq[c].imag = sin(2.0*PI*carrier_freq/FS);
+	f->freq[c].real = cosf(2.0*PI*carrier_freq/FS);
+ 	f->freq[c].imag = sinf(2.0*PI*carrier_freq/FS);
     }
 
     for(c=NC/2; c<NC; c++) {
 	carrier_freq = (-NC/2 + c + 1)*FSEP + FCENTRE;
-	f->freq[c].real = cos(2.0*PI*carrier_freq/FS);
- 	f->freq[c].imag = sin(2.0*PI*carrier_freq/FS);
+	f->freq[c].real = cosf(2.0*PI*carrier_freq/FS);
+ 	f->freq[c].imag = sinf(2.0*PI*carrier_freq/FS);
     }
 	
-    f->freq[NC].real = cos(2.0*PI*FCENTRE/FS);
-    f->freq[NC].imag = sin(2.0*PI*FCENTRE/FS);
+    f->freq[NC].real = cosf(2.0*PI*FCENTRE/FS);
+    f->freq[NC].imag = sinf(2.0*PI*FCENTRE/FS);
 
     /* Generate DBPSK pilot Look Up Table (LUT) */
 
@@ -198,20 +185,17 @@ struct FDMDV * CODEC2_WIN32SUPPORT fdmdv_create(void)
 
     /* freq Offset estimation states */
 
-    f->fft_pilot_cfg = kiss_fft_alloc (MPILOTFFT, 0, NULL, NULL);
+    f->fft_pilot_cfg = fft_new (MPILOTFFT, 0);
     assert(f->fft_pilot_cfg != NULL);
 
-    for(i=0; i<NPILOTBASEBAND; i++) {
-	f->pilot_baseband1[i].real = f->pilot_baseband2[i].real = 0.0;
-	f->pilot_baseband1[i].imag = f->pilot_baseband2[i].imag = 0.0;
-    }
+    init_comp_array(f->pilot_baseband1, NPILOTBASEBAND);
+    init_comp_array(f->pilot_baseband2, NPILOTBASEBAND);
+
     f->pilot_lut_index = 0;
     f->prev_pilot_lut_index = 3*M;
     
-    for(i=0; i<NPILOTLPF; i++) {
-	f->pilot_lpf1[i].real = f->pilot_lpf2[i].real = 0.0;
-	f->pilot_lpf1[i].imag = f->pilot_lpf2[i].imag = 0.0;
-    }
+    init_comp_array(f->pilot_lpf1, NPILOTLPF);
+    init_comp_array(f->pilot_lpf2, NPILOTLPF);
 
     f->foff = 0.0;
     f->foff_rect.real = 1.0;
@@ -229,7 +213,7 @@ struct FDMDV * CODEC2_WIN32SUPPORT fdmdv_create(void)
 
     for(i=0; i<2*FDMDV_NSPEC; i++)
 	f->fft_buf[i] = 0.0;
-    f->fft_cfg = kiss_fft_alloc (2*FDMDV_NSPEC, 0, NULL, NULL);
+    f->fft_cfg = fft_new (2*FDMDV_NSPEC, 0);
     assert(f->fft_cfg != NULL);
 
 
@@ -249,8 +233,8 @@ struct FDMDV * CODEC2_WIN32SUPPORT fdmdv_create(void)
 void CODEC2_WIN32SUPPORT fdmdv_destroy(struct FDMDV *fdmdv)
 {
     assert(fdmdv != NULL);
-    KISS_FFT_FREE(fdmdv->fft_pilot_cfg);
-    KISS_FFT_FREE(fdmdv->fft_cfg);
+    fft_delete(fdmdv->fft_pilot_cfg);
+    fft_delete(fdmdv->fft_cfg);
     free(fdmdv);
 }
 
@@ -342,7 +326,7 @@ void tx_filter(COMP tx_baseband[NC+1][M], COMP tx_symbols[], COMP tx_filter_memo
     float   acc;
     COMP    gain;
 
-    gain.real = sqrt(2.0)/2.0;
+    gain.real = sqrtf(2.0)/2.0;
     gain.imag = 0.0;
     
     /*
@@ -408,10 +392,7 @@ void fdm_upconvert(COMP tx_fdm[], COMP tx_baseband[NC+1][M], COMP phase_tx[], CO
     COMP two = {2.0, 0.0};
     COMP pilot;
 
-    for(i=0; i<M; i++) {
-	tx_fdm[i].real = 0.0;
-	tx_fdm[i].imag = 0.0;
-    }
+    init_comp_array(tx_fdm, M);
 
     /* Nc/2 tones below centre freq */
   
@@ -518,7 +499,7 @@ void generate_pilot_fdm(COMP *pilot_fdm, int *bit, float *symbol,
 
     /* filter DPSK symbol to create M baseband samples */
 
-    filter_mem[NFILTER-1] = (sqrt(2)/2) * *symbol;
+    filter_mem[NFILTER-1] = (sqrtf(2)/2) * *symbol;
     for(i=0; i<M; i++) {
 	tx_baseband[i] = 0.0; 
 	for(j=M-1,k=M-i-1; j<NFILTER; j+=M,k+=M)
@@ -537,8 +518,8 @@ void generate_pilot_fdm(COMP *pilot_fdm, int *bit, float *symbol,
 
     for(i=0; i<M; i++) {
 	*phase = cmult(*phase, *freq);
-	pilot_fdm[i].real = sqrt(2)*2*tx_baseband[i] * phase->real;
-	pilot_fdm[i].imag = sqrt(2)*2*tx_baseband[i] * phase->imag;
+	pilot_fdm[i].real = sqrtf(2)*2*tx_baseband[i] * phase->real;
+	pilot_fdm[i].imag = sqrtf(2)*2*tx_baseband[i] * phase->imag;
     }
 }
 
@@ -557,7 +538,7 @@ void generate_pilot_fdm(COMP *pilot_fdm, int *bit, float *symbol,
 void generate_pilot_lut(COMP pilot_lut[], COMP *pilot_freq)
 {
     int   pilot_rx_bit = 0;
-    float pilot_symbol = sqrt(2.0);
+    float pilot_symbol = sqrtf(2.0);
     COMP  pilot_phase  = {1.0, 0.0};
     float pilot_filter_mem[NFILTER];
     COMP  pilot[M];
@@ -588,7 +569,7 @@ void generate_pilot_lut(COMP pilot_lut[], COMP *pilot_freq)
 \*---------------------------------------------------------------------------*/
 
 void lpf_peak_pick(float *foff, float *max, COMP pilot_baseband[], 
-		   COMP pilot_lpf[], kiss_fft_cfg fft_pilot_cfg, COMP S[], int nin)
+		   COMP pilot_lpf[], fft_cfg fft_pilot_cfg, COMP S[], int nin)
 {
     int   i,j,k;
     int   mpilot;
@@ -610,14 +591,12 @@ void lpf_peak_pick(float *foff, float *max, COMP pilot_baseband[],
     /* decimate to improve DFT resolution, window and DFT */
 
     mpilot = FS/(2*200);  /* calc decimation rate given new sample rate is twice LPF freq */
-    for(i=0; i<MPILOTFFT; i++) {
-	s[i].real = 0.0; s[i].imag = 0.0;
-    }
+    init_comp_array(s, MPILOTFFT);
     for(i=0,j=0; i<NPILOTLPF; i+=mpilot,j++) {
 	s[j] = fcmult(hanning[i], pilot_lpf[i]); 
     }
 
-    kiss_fft(fft_pilot_cfg, (kiss_fft_cpx *)s, (kiss_fft_cpx *)S);
+    fft_do(fft_pilot_cfg, s, S);
 
     /* peak pick and convert to Hz */
 
@@ -721,8 +700,8 @@ void CODEC2_WIN32SUPPORT fdmdv_freq_shift(COMP rx_fdm_fcorr[], COMP rx_fdm[], fl
 {
     int   i;
 
-    foff_rect->real = cos(2.0*PI*foff/FS);
-    foff_rect->imag = sin(2.0*PI*foff/FS);
+    foff_rect->real = cosf(2.0*PI*foff/FS);
+    foff_rect->imag = sinf(2.0*PI*foff/FS);
     for(i=0; i<nin; i++) {
 	*foff_phase_rect = cmult(*foff_phase_rect, cconj(*foff_rect));
 	rx_fdm_fcorr[i] = cmult(rx_fdm[i], *foff_phase_rect);
@@ -822,7 +801,7 @@ void rx_filter(COMP rx_filt[NC+1][P+1], COMP rx_baseband[NC+1][M+M/P], COMP rx_f
 	for(c=0; c<NC+1; c++) {
 	    rx_filt[c][j].real = 0.0; rx_filt[c][j].imag = 0.0;
 	    for(k=0; k<NFILTER; k++) 
-		rx_filt[c][j] = cadd(rx_filt[c][j], fcmult(gt_alpha5_root[k], rx_filter_memory[c][k]));
+	        rx_filt[c][j] = cadd(rx_filt[c][j], fcmult(gt_alpha5_root[k], rx_filter_memory[c][k]));
 	}
 
 	/* make room for next input sample */
@@ -891,8 +870,8 @@ float rx_est_timing(COMP rx_symbols[],
        out single DFT at frequency 2*pi/P */
 
     x.real = 0.0; x.imag = 0.0;
-    freq.real = cos(2*PI/P);
-    freq.imag = sin(2*PI/P);
+    freq.real = cosf(2*PI/P);
+    freq.imag = sinf(2*PI/P);
     phase.real = 1.0;
     phase.imag = 0.0;
 
@@ -904,7 +883,7 @@ float rx_est_timing(COMP rx_symbols[],
     /* Map phase to estimated optimum timing instant at rate M.  The
        M/4 part was adjusted by experiment, I know not why.... */
     
-    rx_timing = atan2(x.imag, x.real)*M/(2*PI) + M/4;
+    rx_timing = atan2f(x.imag, x.real)*M/(2*PI) + M/4;
     
     if (rx_timing > M)
 	rx_timing -= M;
@@ -958,8 +937,8 @@ float qpsk_to_bits(int rx_bits[], int *sync_bit, COMP phase_difference[], COMP p
     int   msb=0, lsb=0;
     float ferr;
 
-    pi_on_4.real = cos(PI/4.0);
-    pi_on_4.imag = sin(PI/4.0);
+    pi_on_4.real = cosf(PI/4.0);
+    pi_on_4.imag = sinf(PI/4.0);
 
     /* Extra 45 degree clockwise lets us use real and imag axis as
        decision boundaries */
@@ -1026,8 +1005,8 @@ void snr_update(float sig_est[], float noise_est[], COMP phase_difference[])
     COMP  pi_on_4;
     int   c;
 
-    pi_on_4.real = cos(PI/4.0);
-    pi_on_4.imag = sin(PI/4.0);
+    pi_on_4.real = cosf(PI/4.0);
+    pi_on_4.imag = sinf(PI/4.0);
 
     /* mag of each symbol is distance from origin, this gives us a
        vector of mags, one for each carrier. */
@@ -1047,8 +1026,8 @@ void snr_update(float sig_est[], float noise_est[], COMP phase_difference[])
        quadrant for convenience. */
     
     for(c=0; c<NC+1; c++) {
-	refl_symbols[c].real = fabs(phase_difference[c].real);
-	refl_symbols[c].imag = fabs(phase_difference[c].imag);    
+	refl_symbols[c].real = fabsf(phase_difference[c].real);
+	refl_symbols[c].imag = fabsf(phase_difference[c].imag);    
 	n[c] = cabsolute(cadd(fcmult(sig_est[c], pi_on_4), cneg(refl_symbols[c])));
     }
      
@@ -1273,8 +1252,8 @@ float calc_snr(float sig_est[], float noise_est[])
    
     S = 0.0;
     for(c=0; c<NC+1; c++)
-	S += pow(sig_est[c], 2.0);
-    SdB = 10.0*log10(S);
+	S += powf(sig_est[c], 2.0);
+    SdB = 10.0*log10f(S);
     
     /* Average noise mag across all carriers and square to get an
        average noise power.  This is an estimate of the noise power in
@@ -1285,13 +1264,13 @@ float calc_snr(float sig_est[], float noise_est[])
     for(c=0; c<NC+1; c++)
 	mean += noise_est[c];
     mean /= (NC+1);
-    N50 = pow(mean, 2.0);
-    N50dB = 10.0*log10(N50);
+    N50 = powf(mean, 2.0);
+    N50dB = 10.0*log10f(N50);
 
     /* Now multiply by (3000 Hz)/(50 Hz) to find the total noise power
        in 3000 Hz */
 
-    N3000dB = N50dB + 10.0*log10(3000.0/RS);
+    N3000dB = N50dB + 10.0*log10f(3000.0/RS);
 
     snr_dB = SdB - N3000dB;
 
@@ -1457,20 +1436,20 @@ void CODEC2_WIN32SUPPORT fdmdv_get_rx_spectrum(struct FDMDV *f, float mag_spec_d
     /* window and FFT */
 
     for(i=0; i<2*FDMDV_NSPEC; i++) {
-	fft_in[i].real = f->fft_buf[i] * (0.5 - 0.5*cos((float)i*2.0*PI/(2*FDMDV_NSPEC)));
+	fft_in[i].real = f->fft_buf[i] * (0.5 - 0.5*cosf((float)i*2.0*PI/(2*FDMDV_NSPEC)));
 	fft_in[i].imag = 0.0;
     }
 
-    kiss_fft(f->fft_cfg, (kiss_fft_cpx *)fft_in, (kiss_fft_cpx *)fft_out);
+    fft_do(f->fft_cfg, fft_in, fft_out);
 
     /* FFT scales up a signal of level 1 FDMDV_NSPEC */
 
-    full_scale_dB = 20*log10(FDMDV_NSPEC);
+    full_scale_dB = 20*log10f(FDMDV_NSPEC);
 
     /* scale and convert to dB */
 
     for(i=0; i<FDMDV_NSPEC; i++) {
-	mag_spec_dB[i]  = 10.0*log10(fft_out[i].real*fft_out[i].real + fft_out[i].imag*fft_out[i].imag);
+	mag_spec_dB[i]  = 10.0*log10f(fft_out[i].real*fft_out[i].real + fft_out[i].imag*fft_out[i].imag);
 	mag_spec_dB[i] -= full_scale_dB;
     }
 }

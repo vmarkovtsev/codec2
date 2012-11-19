@@ -43,7 +43,7 @@ float run_a_test(char raw_file_name[], int bit_to_corrupt)
     FILE   *fin;
     short   buf[N];
     struct  CODEC2 *c2;
-    kiss_fft_cfg  fft_fwd_cfg;
+    fft_cfg  fft_fwd_cfg;
     MODEL   model;
     float   ak[LPC_ORD+1];
     float   lsps[LPC_ORD], e;
