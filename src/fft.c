@@ -73,7 +73,7 @@ void fft_delete(const fft_cfg cfg) {
 
 void fft_do(const fft_cfg cfg, const COMP *in, COMP *out) {
 #ifdef KISS_FFT
-    fft_do(cfg, in, out);
+    kiss_fft(cfg, in, out);
 #elif defined(LIBAVCODEC_FFT)
     memcpy(out, in, cfg->size);
     av_fft_permute(cfg->context, (FFTComplex *)out);
